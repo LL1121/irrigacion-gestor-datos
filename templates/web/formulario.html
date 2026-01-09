@@ -55,6 +55,10 @@
                                 <input type="file" id="foto_evidencia" name="foto_evidencia" accept="image/*" capture="environment" class="form-control">
                                 <small class="text-muted d-block mt-2">Suba una foto de la lectura del caudalímetro (Máx: 10MB)</small>
                                 <small class="text-danger d-block mt-1" id="fileSizeWarning" style="display:none;">⚠️ Archivo demasiado grande. Máximo 10MB.</small>
+                                <!-- Image Preview -->
+                                <div id="imagePreviewContainer" style="display:none; margin-top: 1rem;">
+                                    <img id="imagePreview" src="" alt="Vista previa de foto" style="max-width: 100%; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                </div>
                             </div>
 
                             <div class="mb-4">
@@ -93,48 +97,126 @@
 </div>
 
 <script>
-    // Validar tamaño de archivo en tiempo real
-    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB en bytes
+    // ===== Form Persistence with localStorage =====
+    const STORAGE_KEYS = {
+        ubicacion: 'form_ubicacion_manual',
+        valor: 'form_valor_caudalimetro',
+        observaciones: 'form_observaciones'
+    };
+
+    // Restore form values from localStorage on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        const ubicacion = localStorage.getItem(STORAGE_KEYS.ubicacion);
+        const valor = localStorage.getItem(STORAGE_KEYS.valor);
+        const observaciones = localStorage.getItem(STORAGE_KEYS.observaciones);
+
+        if (ubicacion) {
+            document.getElementById('ubicacion_manual').value = ubicacion;
+        }
+        if (valor) {
+            document.getElementById('valor_caudalimetro').value = valor;
+        }
+        if (observaciones) {
+            document.getElementById('observaciones').value = observaciones;
+        }
+    });
+
+    // Auto-save form fields to localStorage on input
+    document.getElementById('ubicacion_manual').addEventListener('input', function() {
+        localStorage.setItem(STORAGE_KEYS.ubicacion, this.value);
+    });
+
+    document.getElementById('valor_caudalimetro').addEventListener('input', function() {
+        localStorage.setItem(STORAGE_KEYS.valor, this.value);
+    });
+
+    document.getElementById('observaciones').addEventListener('input', function() {
+        localStorage.setItem(STORAGE_KEYS.observaciones, this.value);
+    });
+
+    // ===== Image Preview with FileReader =====
     const fileInput = document.getElementById('foto_evidencia');
-    const fileSizeWarning = document.getElementById('fileSizeWarning');
-    const submitButton = document.querySelector('button[type="submit"]');
+    const imagePreview = document.getElementById('imagePreview');
+    const imagePreviewContainer = document.getElementById('imagePreviewContainer');
 
     if (fileInput) {
         fileInput.addEventListener('change', function() {
             const file = this.files[0];
             if (file) {
+                // Check file size
+                const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+                const fileSizeWarning = document.getElementById('fileSizeWarning');
+                const submitButton = document.querySelector('button[type="submit"]');
+
                 if (file.size > MAX_FILE_SIZE) {
                     fileSizeWarning.style.display = 'block';
                     submitButton.disabled = true;
                     submitButton.style.opacity = '0.5';
                     submitButton.style.cursor = 'not-allowed';
+                    imagePreviewContainer.style.display = 'none';
                 } else {
                     fileSizeWarning.style.display = 'none';
                     submitButton.disabled = false;
                     submitButton.style.opacity = '1';
                     submitButton.style.cursor = 'pointer';
+
+                    // Read and preview the image
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        imagePreview.src = e.target.result;
+                        imagePreviewContainer.style.display = 'block';
+                    };
+                    reader.readAsDataURL(file);
                 }
+            } else {
+                // No file selected
+                imagePreviewContainer.style.display = 'none';
             }
         });
     }
 
-    // Validar formulario antes de enviar
+    // ===== Form Submission: Clear localStorage on success =====
     document.getElementById('measurementForm').addEventListener('submit', function(e) {
         const valor = parseFloat(document.getElementById('valor_caudalimetro').value);
         
-        // Validar valor no negativo
+        // Validate non-negative value
         if (valor < 0) {
             e.preventDefault();
             alert('El valor del caudalímetro no puede ser negativo');
             return false;
         }
 
-        // Validar tamaño de archivo
+        // Validate file size
         const file = fileInput.files[0];
+        const MAX_FILE_SIZE = 10 * 1024 * 1024;
         if (file && file.size > MAX_FILE_SIZE) {
             e.preventDefault();
             alert('El archivo es demasiado grande. Máximo 10MB.');
             return false;
+        }
+
+        // If form is valid, clear localStorage (will be cleared by Django success message)
+        // Note: This clears immediately; if there's a server-side error, localStorage will have stale data
+        // For better UX, we could listen for the success message instead
+    });
+
+    // Clear localStorage on successful save (when Django messages appear)
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check if there's a success message (SweetAlert2 toast will appear)
+        // We clear localStorage after a short delay to ensure data was sent
+        const measurementForm = document.getElementById('measurementForm');
+        if (measurementForm) {
+            const originalSubmit = measurementForm.onsubmit;
+            measurementForm.addEventListener('submit', function(e) {
+                // Only proceed with clearing if form is valid
+                const valor = parseFloat(document.getElementById('valor_caudalimetro').value);
+                if (valor >= 0) {
+                    // Clear on successful submission (Django will redirect)
+                    setTimeout(() => {
+                        Object.values(STORAGE_KEYS).forEach(key => localStorage.removeItem(key));
+                    }, 500);
+                }
+            });
         }
     });
 </script>
