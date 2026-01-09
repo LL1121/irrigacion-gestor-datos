@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div>
+    <div class="dashboard-header">
+        <div class="container-fluid">
+            <div class="d-flex align-items-center" style="gap: 1rem;">
+                <div style="flex: 1;">
+                    <div class="greeting">
+                        <i class="bi bi-pencil-square"></i> Editar Información
+                    </div>
+                    <div class="greeting-subtitle">{{ empresa.username|title }} - Perfil operativo</div>
+                </div>
+                <div style="flex: 0 0 auto;" class="text-center">
+                    <a href="{% url 'dashboard' %}" class="d-inline-block" style="text-decoration: none;">
+                        <img src="{% static 'logo-blanco.png' %}" alt="Irrigación" style="height: 60px;">
+                    </a>
+                </div>
+                <div style="flex: 1;" class="text-end">
+                    <a class="btn btn-outline-light" href="{% url 'admin_empresa_legajo' empresa.id %}">
+                        <i class="bi bi-arrow-left"></i> Volver a Legajo
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid p-4">
+        {% if messages %}
+        <div class="row mb-4">
+            <div class="col-12">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="card shadow-sm">
+                    <div class="card-header" style="background: linear-gradient(135deg, var(--primary-blue), #1e4a6f); color: white;">
+                        <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>Información Operativa</h5>
+                    </div>
+                    <div class="card-body">
+                        <form method="post" class="needs-validation" novalidate>
+                            {% csrf_token %}
+                            
+                            <div class="mb-4">
+                                <label for="username" class="form-label">
+                                    <i class="bi bi-person-fill me-2" style="color: var(--primary-blue);"></i>
+                                    <strong>Nombre de Usuario</strong>
+                                </label>
+                                <input 
+                                    type="text" 
+                                    class="form-control form-control-lg" 
+                                    id="username" 
+                                    name="username" 
+                                    value="{{ empresa.username }}"
+                                    placeholder="Nombre de usuario de la empresa"
+                                    required>
+                                <small class="text-muted d-block mt-2">Este nombre se usa para identificar a la empresa en el sistema.</small>
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="email" class="form-label">
+                                    <i class="bi bi-envelope-fill me-2" style="color: var(--primary-blue);"></i>
+                                    <strong>Correo Electrónico</strong>
+                                </label>
+                                <input 
+                                    type="email" 
+                                    class="form-control form-control-lg" 
+                                    id="email" 
+                                    name="email" 
+                                    value="{{ empresa.email }}"
+                                    placeholder="correo@empresa.com">
+                                <small class="text-muted d-block mt-2">Email de contacto de la empresa.</small>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label for="ubicacion" class="form-label">
+                                    <i class="bi bi-geo-alt-fill me-2" style="color: var(--primary-blue);"></i>
+                                    <strong>Ubicación Geográfica</strong>
+                                </label>
+                                <input 
+                                    type="text" 
+                                    class="form-control form-control-lg" 
+                                    id="ubicacion" 
+                                    name="ubicacion" 
+                                    value="{{ perfil.ubicacion|default:'' }}"
+                                    placeholder="Ej: Pozo A-23, Salta, Argentina"
+                                    required>
+                                <small class="text-muted d-block mt-2">Especifica dónde está ubicada la empresa / pozo de extracción.</small>
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="descripcion" class="form-label">
+                                    <i class="bi bi-file-earmark-text me-2" style="color: var(--primary-blue);"></i>
+                                    <strong>Descripción General</strong>
+                                </label>
+                                <textarea 
+                                    class="form-control" 
+                                    id="descripcion" 
+                                    name="descripcion" 
+                                    rows="5"
+                                    placeholder="Información adicional sobre la empresa, el sitio, características especiales, etc.">{{ perfil.descripcion|default:'' }}</textarea>
+                                <small class="text-muted d-block mt-2">Agregá detalles que consideres relevantes para el seguimiento.</small>
+                            </div>
+
+                            <div class="d-flex gap-2 mt-4">
+                                <button type="submit" class="btn btn-primary btn-lg">
+                                    <i class="bi bi-check-circle me-2"></i>Guardar Cambios
+                                </button>
+                                <a href="{% url 'admin_empresa_legajo' empresa.id %}" class="btn btn-secondary btn-lg">
+                                    <i class="bi bi-x-circle me-2"></i>Cancelar
+                                </a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-lg-4">
+                <div class="card shadow-sm bg-light">
+                    <div class="card-header bg-light">
+                        <h6 class="mb-0"><i class="bi bi-info-circle me-2"></i>Información del Usuario</h6>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-2">
+                            <small class="text-muted">Usuario</small><br>
+                            <strong>{{ empresa.username }}</strong>
+                        </p>
+                        <p class="mb-2">
+                            <small class="text-muted">Email</small><br>
+                            <strong>{{ empresa.email|default:"No especificado" }}</strong>
+                        </p>
+                        <p class="mb-2">
+                            <small class="text-muted">Registrado desde</small><br>
+                            <strong>{{ empresa.date_joined|date:"d/m/Y" }}</strong>
+                        </p>
+                        <p class="mb-0">
+                            <small class="text-muted">Estado</small><br>
+                            {% if empresa.is_active %}
+                                <span class="badge bg-success">Activo</span>
+                            {% else %}
+                                <span class="badge bg-danger">Inactivo</span>
+                            {% endif %}
+                        </p>
+                    </div>
+                </div>
+
+                <div class="alert alert-info mt-3">
+                    <i class="bi bi-lightbulb me-2"></i>
+                    <small><strong>Tip:</strong> Esta información será visible en el legajo de la empresa y ayuda a identificar la ubicación exacta de donde se toman las mediciones.</small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

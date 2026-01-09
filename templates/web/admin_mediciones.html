@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div>
+    <div class="dashboard-header">
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="greeting">Todas las Mediciones</div>
+                    <div class="greeting-subtitle">Validar y gestionar mediciones del sistema</div>
+                </div>
+                <a class="btn btn-outline-light" href="{% url 'dashboard' %}">
+                    <i class="bi bi-arrow-left"></i> Volver
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid p-4">
+        {% if messages %}
+        <div class="row mb-4">
+            <div class="col-12">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="row">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Usuario</th>
+                                        <th>Ubicación</th>
+                                        <th>Valor (m³/h)</th>
+                                        <th>Foto</th>
+                                        <th>Estado</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for medicion in mediciones %}
+                                    <tr style="cursor: pointer;" onclick="verDetalles({{ medicion.id }})">
+                                        <td>{{ medicion.timestamp|date:"d/m/Y H:i" }}</td>
+                                        <td><strong>{{ medicion.user.username }}</strong></td>
+                                        <td>{{ medicion.ubicacion_manual|default:"Sin especificar" }}</td>
+                                        <td>{{ medicion.value }}</td>
+                                        <td>
+                                            {% if medicion.photo %}
+                                                <a href="{{ medicion.photo.url }}" target="_blank" onclick="event.stopPropagation()">
+                                                    <img src="{{ medicion.photo.url }}" style="width: 40px; height: 40px; object-fit: cover; border-radius: 4px;">
+                                                </a>
+                                            {% else %}
+                                                <span class="text-muted">Sin foto</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if medicion.is_valid %}
+                                                <span class="badge bg-success">Validado</span>
+                                            {% else %}
+                                                <span class="badge bg-warning text-dark">Pendiente</span>
+                                            {% endif %}
+                                        </td>
+                                        <td onclick="event.stopPropagation()">
+                                            {% if not medicion.is_valid %}
+                                            <form method="post" action="{% url 'admin_validar_medicion' medicion.id %}" style="display: inline;">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-sm btn-success" title="Validar">
+                                                    <i class="bi bi-check-circle"></i>
+                                                </button>
+                                            </form>
+                                            {% endif %}
+                                            <form method="post" action="{% url 'admin_eliminar_medicion' medicion.id %}" style="display: inline;">
+                                                {% csrf_token %}
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" title="Eliminar" onclick="return confirm('¿Eliminar esta medición?')">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="7" class="text-center text-muted py-4">
+                                            No hay mediciones registradas
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Detalles -->
+<div class="modal fade" id="detallesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, var(--primary-blue), #1e4a6f); color: white;">
+                <h5 class="modal-title"><i class="bi bi-info-circle me-2"></i>Detalles de la Medición</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="text-muted small">Usuario</label>
+                        <div id="detalle_usuario" class="fw-bold fs-5">-</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="text-muted small">Fecha y Hora</label>
+                        <div id="detalle_timestamp" class="fw-bold fs-5">-</div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="text-muted small">Valor Medido</label>
+                        <div id="detalle_valor" class="fw-bold fs-3 text-primary">-</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="text-muted small">Estado</label>
+                        <div id="detalle_estado">-</div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12 mb-3">
+                        <label class="text-muted small">Ubicación Manual</label>
+                        <div id="detalle_ubicacion" class="fw-bold">-</div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="text-muted small">Coordenadas Capturadas</label>
+                        <div id="detalle_coords_capturadas">
+                            <small class="text-muted">Lat: <span id="detalle_lat">-</span></small><br>
+                            <small class="text-muted">Long: <span id="detalle_long">-</span></small>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="text-muted small">Coordenadas Objetivo</label>
+                        <div id="detalle_coords_objetivo">
+                            <small class="text-muted">Lat: <span id="detalle_target_lat">-</span></small><br>
+                            <small class="text-muted">Long: <span id="detalle_target_long">-</span></small>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12 mb-3">
+                        <label class="text-muted small">Evidencia Fotográfica</label>
+                        <div id="detalle_foto_container" class="text-center mt-2">
+                            <img id="detalle_foto" src="" alt="Foto medición" class="img-fluid rounded shadow-sm" style="max-height: 400px;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Datos de mediciones para el modal
+const medicionesData = {
+    {% for medicion in mediciones %}
+    {{ medicion.id }}: {
+        usuario: "{{ medicion.user.username }}",
+        timestamp: "{{ medicion.timestamp|date:'d/m/Y H:i' }}",
+        valor: "{{ medicion.value }} m³/h",
+        ubicacion: "{{ medicion.ubicacion_manual|default:'Sin especificar' }}",
+        estado: {% if medicion.is_valid %}"validado"{% else %}"pendiente"{% endif %},
+        lat: {% if medicion.captured_latitude %}"{{ medicion.captured_latitude }}"{% else %}null{% endif %},
+        long: {% if medicion.captured_longitude %}"{{ medicion.captured_longitude }}"{% else %}null{% endif %},
+        target_lat: {% if medicion.target_latitude %}"{{ medicion.target_latitude }}"{% else %}null{% endif %},
+        target_long: {% if medicion.target_longitude %}"{{ medicion.target_longitude }}"{% else %}null{% endif %},
+        foto: {% if medicion.photo %}"{{ medicion.photo.url }}"{% else %}null{% endif %}
+    },
+    {% endfor %}
+};
+
+function verDetalles(medicionId) {
+    const datos = medicionesData[medicionId];
+    if (!datos) return;
+    
+    // Cargar datos en el modal
+    document.getElementById('detalle_usuario').textContent = datos.usuario;
+    document.getElementById('detalle_timestamp').textContent = datos.timestamp;
+    document.getElementById('detalle_valor').textContent = datos.valor;
+    document.getElementById('detalle_ubicacion').textContent = datos.ubicacion;
+    
+    // Estado
+    const estadoDiv = document.getElementById('detalle_estado');
+    if (datos.estado === 'validado') {
+        estadoDiv.innerHTML = '<span class="badge bg-success fs-6">Validado</span>';
+    } else {
+        estadoDiv.innerHTML = '<span class="badge bg-warning text-dark fs-6">Pendiente</span>';
+    }
+    
+    // Coordenadas
+    document.getElementById('detalle_lat').textContent = datos.lat || 'No disponible';
+    document.getElementById('detalle_long').textContent = datos.long || 'No disponible';
+    document.getElementById('detalle_target_lat').textContent = datos.target_lat || 'No definido';
+    document.getElementById('detalle_target_long').textContent = datos.target_long || 'No definido';
+    
+    // Foto
+    const fotoContainer = document.getElementById('detalle_foto_container');
+    const fotoImg = document.getElementById('detalle_foto');
+    if (datos.foto) {
+        fotoImg.src = datos.foto;
+        fotoContainer.style.display = 'block';
+    } else {
+        fotoContainer.style.display = 'none';
+    }
+    
+    // Mostrar modal
+    new bootstrap.Modal(document.getElementById('detallesModal')).show();
+}
+</script>
+{% endblock %}

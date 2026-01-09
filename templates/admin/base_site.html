@@ -1,0 +1,293 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | Panel de Administración{% endblock %}
+
+{% block branding %}
+<div class="d-flex align-items-center">
+    <svg class="me-2" style="width: 32px; height: 32px;" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="white">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+    </svg>
+    <h1 id="site-name" style="margin: 0; color: white; font-weight: 600;">
+        Sistema de Mediciones
+    </h1>
+</div>
+{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+:root {
+    --primary-blue: #2c5f8d;
+    --secondary-blue: #1e4a6f;
+    --accent-green: #20c997;
+    --light-bg: #f8f9fa;
+}
+
+/* Header styling */
+#header {
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--secondary-blue) 100%) !important;
+    color: white !important;
+    padding: 1rem 1.5rem !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#branding h1 {
+    color: white !important;
+}
+
+#user-tools {
+    color: white !important;
+}
+
+#user-tools a {
+    color: white !important;
+    text-decoration: none;
+    padding: 0.5rem 1rem;
+    border-radius: 4px;
+    transition: background-color 0.3s;
+}
+
+#user-tools a:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Breadcrumbs */
+.breadcrumbs {
+    background: var(--light-bg) !important;
+    padding: 1rem 1.5rem !important;
+    border-bottom: 1px solid #dee2e6;
+}
+
+.breadcrumbs a {
+    color: var(--primary-blue) !important;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.breadcrumbs a:hover {
+    color: var(--accent-green) !important;
+}
+
+/* Content area */
+#content {
+    padding: 2rem 1.5rem !important;
+    background: white;
+}
+
+.module h2, .module caption, .inline-group h2 {
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--secondary-blue) 100%) !important;
+    color: white !important;
+    padding: 0.75rem 1rem !important;
+    border-radius: 4px 4px 0 0;
+}
+
+/* Buttons */
+.button, input[type=submit], input[type=button], .submit-row input, button {
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--secondary-blue) 100%) !important;
+    color: white !important;
+    border: none !important;
+    padding: 0.5rem 1.5rem !important;
+    border-radius: 4px !important;
+    cursor: pointer;
+    font-weight: 500;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.button:hover, input[type=submit]:hover, input[type=button]:hover, .submit-row input:hover, button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15) !important;
+}
+
+.button.default, input[type=submit].default, .submit-row input.default {
+    background: linear-gradient(135deg, var(--accent-green) 0%, #28a745 100%) !important;
+}
+
+/* Links */
+a:link, a:visited {
+    color: var(--primary-blue) !important;
+}
+
+a:hover {
+    color: var(--accent-green) !important;
+}
+
+/* Tables */
+#result_list {
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+#result_list thead th {
+    background: linear-gradient(135deg, var(--primary-blue) 0%, var(--secondary-blue) 100%) !important;
+    color: white !important;
+    border-bottom: 2px solid var(--secondary-blue) !important;
+    padding: 0.75rem !important;
+}
+
+#result_list tbody tr {
+    transition: background-color 0.2s;
+}
+
+#result_list tbody tr:hover {
+    background-color: rgba(44, 95, 141, 0.05) !important;
+}
+
+/* Forms */
+.form-row label {
+    color: var(--primary-blue);
+    font-weight: 600;
+}
+
+input[type=text], input[type=password], input[type=email], input[type=url], 
+input[type=number], input[type=date], input[type=time], textarea, select {
+    border: 1px solid #dee2e6 !important;
+    border-radius: 4px !important;
+    padding: 0.5rem !important;
+    transition: border-color 0.2s;
+}
+
+input[type=text]:focus, input[type=password]:focus, input[type=email]:focus, 
+input[type=url]:focus, input[type=number]:focus, input[type=date]:focus, 
+input[type=time]:focus, textarea:focus, select:focus {
+    border-color: var(--primary-blue) !important;
+    outline: none;
+    box-shadow: 0 0 0 0.2rem rgba(44, 95, 141, 0.15);
+}
+
+/* Messages */
+.messagelist {
+    padding: 0;
+    margin: 0 0 1.5rem 0;
+}
+
+.messagelist li {
+    padding: 1rem 1.5rem;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+}
+
+.messagelist .success {
+    background-color: #d4edda !important;
+    border: 1px solid #c3e6cb;
+    color: #155724;
+}
+
+.messagelist .warning {
+    background-color: #fff3cd !important;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+}
+
+.messagelist .error {
+    background-color: #f8d7da !important;
+    border: 1px solid #f5c6cb;
+    color: #721c24;
+}
+
+/* Dashboard */
+.dashboard .module table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+.dashboard .module table th {
+    text-align: left;
+    padding: 0.75rem;
+    background: var(--light-bg);
+    color: var(--primary-blue);
+    font-weight: 600;
+}
+
+.dashboard .module table td {
+    padding: 0.75rem;
+    border-top: 1px solid #dee2e6;
+}
+
+/* Sidebar */
+#changelist-filter {
+    background: var(--light-bg) !important;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 1rem;
+}
+
+#changelist-filter h2 {
+    background: none !important;
+    color: var(--primary-blue) !important;
+    border-bottom: 2px solid var(--primary-blue);
+    padding: 0.5rem 0 !important;
+    margin-bottom: 1rem;
+}
+
+#changelist-filter h3 {
+    color: var(--primary-blue);
+    font-weight: 600;
+    margin-top: 1rem;
+}
+
+/* Action bar */
+.actions {
+    background: var(--light-bg) !important;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.actions select {
+    padding: 0.5rem !important;
+    border: 1px solid #dee2e6 !important;
+    border-radius: 4px !important;
+}
+
+/* Delete confirmation */
+.delete-confirmation {
+    background: #fff3cd;
+    border: 2px solid #ffc107;
+    border-radius: 4px;
+    padding: 1.5rem;
+    margin: 1rem 0;
+}
+
+/* Pagination */
+.paginator {
+    padding: 1rem;
+    text-align: center;
+}
+
+.paginator a {
+    padding: 0.5rem 1rem;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    margin: 0 0.25rem;
+    display: inline-block;
+    transition: all 0.2s;
+}
+
+.paginator a:hover {
+    background: var(--primary-blue);
+    color: white !important;
+    border-color: var(--primary-blue);
+}
+
+.paginator .this-page {
+    padding: 0.5rem 1rem;
+    background: var(--primary-blue);
+    color: white;
+    border-radius: 4px;
+    margin: 0 0.25rem;
+    display: inline-block;
+}
+</style>
+{% endblock %}
+
+{% block footer %}
+<div id="footer" style="text-align: center; padding: 1.5rem; background: var(--light-bg); border-top: 1px solid #dee2e6; margin-top: 2rem;">
+    <p style="color: #6c757d; margin: 0;">
+        <strong>Sistema de Mediciones Petroleras</strong> | Desarrollado con Django
+    </p>
+</div>
+{% endblock %}

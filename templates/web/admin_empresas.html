@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div>
+    <div class="dashboard-header">
+        <div class="container-fluid">
+            <div class="d-flex align-items-center" style="gap: 1rem;">
+                <div style="flex: 1;">
+                    <div class="greeting">Empresas Petroleras</div>
+                    <div class="greeting-subtitle">Gestionar legajos y mediciones de empresas</div>
+                </div>
+                <div style="flex: 0 0 auto;" class="text-center">
+                    <a href="{% url 'dashboard' %}" class="d-inline-block" style="text-decoration: none;">
+                        <img src="{% static 'logo-blanco.png' %}" alt="Irrigación" style="height: 60px;">
+                    </a>
+                </div>
+                <div style="flex: 1;" class="text-end">
+                    <a class="btn btn-outline-light" href="{% url 'dashboard' %}">
+                        <i class="bi bi-arrow-left"></i> Volver
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid p-4">
+        {% if messages %}
+        <div class="row mb-4">
+            <div class="col-12">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="row">
+            {% for empresa in empresas %}
+            <div class="col-md-6 col-lg-4 mb-4">
+                <div class="card h-100 shadow-sm" style="border-top: 4px solid var(--primary-blue);">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div>
+                                <h5 class="card-title mb-1" style="color: var(--primary-blue);">
+                                    <i class="bi bi-building"></i> {{ empresa.username|title }}
+                                </h5>
+                                <small class="text-muted">
+                                    {% if empresa.email %}
+                                        <i class="bi bi-envelope"></i> {{ empresa.email }}
+                                    {% else %}
+                                        Sin email
+                                    {% endif %}
+                                </small>
+                            </div>
+                        </div>
+                        
+                        <div class="row text-center mb-3">
+                            <div class="col-6">
+                                <div class="border rounded p-2">
+                                    <div class="fs-4 fw-bold text-primary">{{ empresa.total_mediciones }}</div>
+                                    <small class="text-muted">Mediciones</small>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="border rounded p-2">
+                                    <div class="fs-6 text-muted">
+                                        {% if empresa.latest_measurement %}
+                                            {{ empresa.latest_measurement|date:"d/m/Y" }}
+                                        {% else %}
+                                            Sin datos
+                                        {% endif %}
+                                    </div>
+                                    <small class="text-muted">Última medición</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-grid gap-2">
+                            <a href="{% url 'admin_empresa_legajo' empresa.id %}" class="btn btn-primary shadow-sm px-4 py-2 rounded-pill">
+                                <i class="bi bi-file-text me-2"></i>Ver Legajo
+                            </a>
+                            <a href="{% url 'admin_mediciones_empresa' empresa.id %}" class="btn btn-outline-primary shadow-sm px-4 py-2 rounded-pill">
+                                <i class="bi bi-list-ul me-2"></i>Ver Mediciones
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i> No hay empresas registradas
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}

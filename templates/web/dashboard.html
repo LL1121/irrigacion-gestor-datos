@@ -1,0 +1,306 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div>
+    <div class="dashboard-header">
+        <div class="container-fluid">
+            <div class="d-flex align-items-center" style="gap: 1rem;">
+                <div style="flex: 1;">
+                    <div class="greeting">Hola, {% if user.get_full_name %}{{ user.get_full_name }}{% else %}{{ user.username }}{% endif %}</div>
+                    <div class="greeting-subtitle">
+                        <i class="bi bi-calendar3 me-2"></i>
+                        <span id="currentDate"></span>
+                    </div>
+                </div>
+                <div style="flex: 0 0 auto;" class="text-center">
+                    <a href="{% url 'dashboard' %}" class="d-inline-block" style="text-decoration: none;">
+                        <img src="{% static 'logo-blanco.png' %}" alt="Irrigación" style="height: 60px;">
+                    </a>
+                </div>
+                <div style="flex: 1;" class="text-end">
+                    <form method="post" action="{% url 'logout' %}" style="display: inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-outline-light">
+                            <i class="bi bi-box-arrow-right"></i> Salir
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid p-4">
+        {% if user.is_superuser %}
+        <!-- Panel de Control Administrativo (Solo Superusuario) -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <h4 class="mb-3 text-center"><i class="bi bi-speedometer2 me-2"></i>Panel de Control Administrativo</h4>
+            </div>
+        </div>
+        <div class="row g-3 mb-4 justify-content-center">
+            <div class="col-md-3">
+                <a href="{% url 'admin_empresas' %}" class="card action-card h-100 text-decoration-none" style="background: linear-gradient(135deg, #2c5f8d 0%, #4a7ba7 100%); color: white;">
+                    <div class="card-body text-center">
+                        <i class="bi bi-building-fill fs-1 mb-2"></i>
+                        <h5 class="card-title">Empresas</h5>
+                        <p class="mb-0">Ver legajos y mediciones</p>
+                    </div>
+                </a>
+            </div>
+            <div class="col-md-3">
+                <a href="{% url 'admin_usuarios' %}" class="card action-card h-100 text-decoration-none" style="background: linear-gradient(135deg, #fd7e14 0%, #ffc107 100%); color: white;">
+                    <div class="card-body text-center">
+                        <i class="bi bi-people fs-1 mb-2"></i>
+                        <h5 class="card-title">Usuarios</h5>
+                        <p class="mb-0">Gestionar usuarios</p>
+                    </div>
+                </a>
+            </div>
+            <div class="col-md-3">
+                <a href="{% url 'cargar' %}" class="card action-card h-100 text-decoration-none" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white;">
+                    <div class="card-body text-center">
+                        <i class="bi bi-plus-circle-fill fs-1 mb-2"></i>
+                        <h5 class="card-title">Cargar Medición</h5>
+                        <p class="mb-0">Registrar nueva medición</p>
+                    </div>
+                </a>
+            </div>
+            <div class="col-md-3">
+                <a href="/admin/" class="card action-card h-100 text-decoration-none" style="background: linear-gradient(135deg, #6f42c1 0%, #9b59b6 100%); color: white;">
+                    <div class="card-body text-center">
+                        <i class="bi bi-gear fs-1 mb-2"></i>
+                        <h5 class="card-title">Configuración</h5>
+                        <p class="mb-0">Panel Django Admin</p>
+                    </div>
+                </a>
+            </div>
+        </div>
+        {% elif user.is_staff %}
+        <!-- Panel Staff (Solo Consulta) -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <h4 class="mb-3 text-center"><i class="bi bi-speedometer2 me-2"></i>Panel de Supervisión</h4>
+            </div>
+        </div>
+        <div class="row g-3 mb-4 justify-content-center">
+            <div class="col-md-6">
+                <a href="{% url 'admin_empresas' %}" class="card action-card h-100 text-decoration-none" style="background: linear-gradient(135deg, #2c5f8d 0%, #4a7ba7 100%); color: white;">
+                    <div class="card-body text-center">
+                        <i class="bi bi-building-fill fs-1 mb-2"></i>
+                        <h5 class="card-title">Empresas</h5>
+                        <p class="mb-0">Ver legajos y mediciones</p>
+                    </div>
+                </a>
+            </div>
+            <div class="col-md-6">
+                <a href="{% url 'cargar' %}" class="card action-card h-100 text-decoration-none" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white;">
+                    <div class="card-body text-center">
+                        <i class="bi bi-plus-circle-fill fs-1 mb-2"></i>
+                        <h5 class="card-title">Cargar Medición</h5>
+                        <p class="mb-0">Registrar nueva medición</p>
+                    </div>
+                </a>
+            </div>
+        </div>
+        {% else %}
+        <!-- Botón Cargar Medición para Operarios -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <a class="card action-card action-card-green text-decoration-none text-white" href="{% url 'cargar' %}">
+                    <div class="card-body text-center">
+                        <div class="action-card-icon">
+                            <i class="bi bi-plus-circle-fill"></i>
+                        </div>
+                        <div class="action-card-title">CARGAR MEDICIÓN</div>
+                        <p class="mb-0 mt-2 text-white">Registrar nueva medición de pozo</p>
+                    </div>
+                </a>
+            </div>
+        </div>
+        {% endif %}
+
+        {% if messages %}
+        <div class="row mb-4">
+            <div class="col-12">
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    <i class="bi bi-check-circle-fill me-2"></i>
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="row">
+            <div class="col-12">
+                <h4 class="mb-3"><i class="bi bi-clock-history me-2"></i>Últimas Mediciones</h4>
+                <div class="card">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        {% if user.is_staff %}
+                                        <th>Empresa</th>
+                                        {% endif %}
+                                        <th>Ubicación</th>
+                                        <th>Valor (m³/h)</th>
+                                        <th>Estado</th>
+                                        <th>Foto</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for medicion in mediciones %}
+                                    <tr style="cursor: pointer;" onclick="verDetallesMedicion({{ medicion.id }})">
+                                        <td>{{ medicion.timestamp|date:"d/m/Y H:i" }}</td>
+                                        {% if user.is_staff %}
+                                        <td><span class="badge bg-primary">{{ medicion.user.username }}</span></td>
+                                        {% endif %}
+                                        <td><strong>{{ medicion.ubicacion_manual|default:"Sin especificar" }}</strong></td>
+                                        <td>{{ medicion.value }}</td>
+                                        <td>
+                                            {% if medicion.is_valid %}
+                                                <span class="badge bg-success">Verificado</span>
+                                            {% else %}
+                                                <span class="badge bg-warning text-dark">Pendiente</span>
+                                            {% endif %}
+                                        </td>
+                                        <td onclick="event.stopPropagation()">
+                                            {% if medicion.photo %}
+                                                <a href="{{ medicion.photo.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                    <i class="bi bi-image"></i> Ver
+                                                </a>
+                                            {% else %}
+                                                <span class="text-muted">Sin foto</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% empty %}
+                                    <tr>
+                                        <td colspan="{% if user.is_staff %}6{% else %}5{% endif %}" class="text-center text-muted py-4">
+                                            <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+                                            No hay mediciones registradas aún
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Detalles Medición -->
+<div class="modal fade" id="modalDetallesMedicion" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, #2c5f8d 0%, #1a3a52 100%); color: white;">
+                <h5 class="modal-title"><i class="bi bi-info-circle me-2"></i>Detalles de Medición</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <!-- Información General -->
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header bg-primary text-white">
+                                <i class="bi bi-info-circle me-2"></i>Información General
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Fecha:</strong> <span id="detalle-fecha"></span></p>
+                                <p><strong>Empresa:</strong> <span id="detalle-empresa"></span></p>
+                                <p><strong>Valor:</strong> <span id="detalle-valor"></span> m³/h</p>
+                                <p><strong>Estado:</strong> <span id="detalle-estado"></span></p>
+                                <p class="mb-0"><strong>Ubicación Manual:</strong> <span id="detalle-ubicacion"></span></p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Coordenadas GPS -->
+                    <div class="col-md-6">
+                        <div class="card h-100">
+                            <div class="card-header bg-success text-white">
+                                <i class="bi bi-geo-alt me-2"></i>Coordenadas GPS
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Capturadas:</strong></p>
+                                <p class="mb-2">
+                                    <i class="bi bi-pin-map"></i> Lat: <span id="detalle-lat-capturada"></span><br>
+                                    <i class="bi bi-pin-map"></i> Lon: <span id="detalle-lon-capturada"></span>
+                                </p>
+                                <p><strong>Objetivo (Esperadas):</strong></p>
+                                <p class="mb-0">
+                                    <i class="bi bi-crosshair"></i> Lat: <span id="detalle-lat-objetivo"></span><br>
+                                    <i class="bi bi-crosshair"></i> Lon: <span id="detalle-lon-objetivo"></span>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Evidencia Fotográfica -->
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">
+                                <i class="bi bi-camera me-2"></i>Evidencia Fotográfica
+                            </div>
+                            <div class="card-body text-center" id="detalle-foto-container">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+const medicionesData = {
+    {% for medicion in mediciones %}
+    {{ medicion.id }}: {
+        fecha: "{{ medicion.timestamp|date:'d/m/Y H:i' }}",
+        empresa: "{{ medicion.user.username }}",
+        valor: "{{ medicion.value }}",
+        estado: {% if medicion.is_valid %}"Verificado"{% else %}"Pendiente"{% endif %},
+        estadoBadge: {% if medicion.is_valid %}"bg-success"{% else %}"bg-warning text-dark"{% endif %},
+        ubicacion: "{{ medicion.ubicacion_manual|default:'Sin especificar' }}",
+        latCapturada: "{{ medicion.captured_latitude|default:'N/A' }}",
+        lonCapturada: "{{ medicion.captured_longitude|default:'N/A' }}",
+        latObjetivo: "{{ medicion.target_latitude|default:'N/A' }}",
+        lonObjetivo: "{{ medicion.target_longitude|default:'N/A' }}",
+        foto: {% if medicion.photo %}"{{ medicion.photo.url }}"{% else %}null{% endif %}
+    },
+    {% endfor %}
+};
+
+function verDetallesMedicion(medicionId) {
+    const medicion = medicionesData[medicionId];
+    if (!medicion) return;
+    
+    document.getElementById('detalle-fecha').textContent = medicion.fecha;
+    document.getElementById('detalle-empresa').textContent = medicion.empresa;
+    document.getElementById('detalle-valor').textContent = medicion.valor;
+    document.getElementById('detalle-estado').innerHTML = `<span class="badge ${medicion.estadoBadge}">${medicion.estado}</span>`;
+    document.getElementById('detalle-ubicacion').textContent = medicion.ubicacion;
+    document.getElementById('detalle-lat-capturada').textContent = medicion.latCapturada;
+    document.getElementById('detalle-lon-capturada').textContent = medicion.lonCapturada;
+    document.getElementById('detalle-lat-objetivo').textContent = medicion.latObjetivo;
+    document.getElementById('detalle-lon-objetivo').textContent = medicion.lonObjetivo;
+    
+    const fotoContainer = document.getElementById('detalle-foto-container');
+    if (medicion.foto) {
+        fotoContainer.innerHTML = `<img src="${medicion.foto}" class="img-fluid rounded" style="max-height: 400px;" alt="Evidencia">`;
+    } else {
+        fotoContainer.innerHTML = '<p class="text-muted mb-0"><i class="bi bi-image-slash fs-1 d-block mb-2"></i>No hay foto disponible</p>';
+    }
+    
+    new bootstrap.Modal(document.getElementById('modalDetallesMedicion')).show();
+}
+</script>
+{% endblock %}

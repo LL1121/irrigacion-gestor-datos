@@ -1,0 +1,556 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<style>
+body {
+    overflow-x: hidden;
+}
+.container-fluid {
+    max-width: 100%;
+    padding-left: 15px;
+    padding-right: 15px;
+}
+</style>
+<div>
+    <div class="dashboard-header">
+        <div class="container-fluid">
+            <div class="d-flex align-items-center" style="gap: 1rem;">
+                <div style="flex: 1;">
+                    <div class="greeting">
+                        <i class="bi bi-building"></i> {{ empresa.username|title }}
+                    </div>
+                    <div class="greeting-subtitle">Legajo completo de la empresa</div>
+                </div>
+                <div style="flex: 0 0 auto;" class="text-center">
+                    <a href="{% url 'dashboard' %}" class="d-inline-block" style="text-decoration: none;">
+                        <img src="{% static 'logo-blanco.png' %}" alt="Irrigación" style="height: 60px;">
+                    </a>
+                </div>
+                <div style="flex: 1;" class="text-end">
+                    {% if user.is_superuser %}
+                    <a class="btn btn-outline-light me-2" href="{% url 'admin_editar_perfil_empresa' empresa.id %}">
+                        <i class="bi bi-pencil"></i> Editar Información
+                    </a>
+                    {% endif %}
+                    <div class="btn-group me-2" role="group">
+                        <button type="button" class="btn btn-outline-light dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-gear"></i>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li>
+                                <a class="dropdown-item" href="{% url 'exportar_csv' %}?user_id={{ empresa.id }}">
+                                    <i class="bi bi-download me-2"></i>Descargar Plantilla (CSV)
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item" href="#" onclick="descargarGrafico(event)">
+                                    <i class="bi bi-image me-2"></i>Descargar Gráfico (PNG)
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                    <a class="btn btn-outline-light" href="{% url 'admin_empresas' %}">
+                        <i class="bi bi-arrow-left"></i> Volver a Empresas
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid p-4">
+        <!-- Información de la Empresa -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-header" style="background: linear-gradient(135deg, var(--primary-blue), #1e4a6f); color: white;">
+                        <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Información de la Empresa</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Usuario:</strong> {{ empresa.username }}</p>
+                                <p><strong>Email:</strong> {{ empresa.email|default:"No especificado" }}</p>
+                                <p><strong>Fecha de registro:</strong> {{ empresa.date_joined|date:"d/m/Y H:i" }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Último acceso:</strong> 
+                                    {% if empresa.last_login %}
+                                        {{ empresa.last_login|date:"d/m/Y H:i" }}
+                                    {% else %}
+                                        Nunca
+                                    {% endif %}
+                                </p>
+                                <p><strong>Estado:</strong> 
+                                    {% if empresa.is_active %}
+                                        <span class="badge bg-success">Activo</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Inactivo</span>
+                                    {% endif %}
+                                </p>
+                            </div>
+                        </div>
+                        {% if empresa.empresa_perfil %}
+                        <hr class="my-3">
+                        <div class="row">
+                            <div class="col-12">
+                                <h6 class="text-muted mb-2"><i class="bi bi-geo-alt-fill me-2" style="color: var(--primary-blue);"></i>Ubicación Operativa</h6>
+                                <p class="mb-0" style="font-size: 1.1rem; color: var(--primary-blue); font-weight: 500;">
+                                    {{ empresa.empresa_perfil.ubicacion|default:"No especificada" }}
+                                </p>
+                                {% if empresa.empresa_perfil.descripcion %}
+                                <p class="text-muted small mt-2 mb-0">{{ empresa.empresa_perfil.descripcion }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Estadísticas -->
+        <div class="row mb-4">
+            <div class="col-md-3 mb-3">
+                <div class="card text-center shadow-sm h-100">
+                    <div class="card-body">
+                        <i class="bi bi-list-check fs-1 text-primary mb-2"></i>
+                        <h3 class="mb-0">{{ stats.total|default:0 }}</h3>
+                        <small class="text-muted">Total Mediciones</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-center shadow-sm h-100">
+                    <div class="card-body">
+                        <i class="bi bi-check-circle fs-1 text-success mb-2"></i>
+                        <h3 class="mb-0">{{ stats.validadas|default:0 }}</h3>
+                        <small class="text-muted">Validadas</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-center shadow-sm h-100">
+                    <div class="card-body">
+                        <i class="bi bi-clock-history fs-1 text-warning mb-2"></i>
+                        <h3 class="mb-0">{{ stats.pendientes|default:0 }}</h3>
+                        <small class="text-muted">Pendientes</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-3">
+                <div class="card text-center shadow-sm h-100">
+                    <div class="card-body">
+                        <i class="bi bi-speedometer2 fs-1 text-info mb-2"></i>
+                        <h3 class="mb-0">
+                            {% if stats.promedio %}
+                                {{ stats.promedio|floatformat:0 }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </h3>
+                        <small class="text-muted">Promedio (m³/h)</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Información Detallada de la Empresa -->
+        <div class="row">
+            <div class="col-12">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header" style="background: linear-gradient(135deg, var(--primary-blue), #1e4a6f); color: white;">
+                        <h5 class="mb-0"><i class="bi bi-file-earmark-text me-2"></i>Información Operativa</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="border rounded p-3">
+                                    <h6 class="text-muted mb-2"><i class="bi bi-percent me-2"></i>Tasa de Validación</h6>
+                                    <div class="progress mb-2" style="height: 25px;">
+                                        <div class="progress-bar bg-success" role="progressbar" 
+                                            style="width: {{ stats.porcentaje_validadas }}%"
+                                            aria-valuenow="{{ stats.porcentaje_validadas }}" aria-valuemin="0" aria-valuemax="100">
+                                            <small class="fw-bold">{{ stats.validadas|default:0 }}/{{ stats.total|default:0 }}</small>
+                                        </div>
+                                    </div>
+                                    <small class="text-muted">{{ stats.porcentaje_validadas }}% validadas</small>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="border rounded p-3">
+                                    <h6 class="text-muted mb-2"><i class="bi bi-graph-up me-2"></i>Rango de Valores</h6>
+                                    <p class="mb-0">
+                                        <strong>Min:</strong> {% if stats.minimo %}<span class="text-danger">{{ stats.minimo|floatformat:0 }}</span>{% else %}-{% endif %} m³/h<br>
+                                        <strong>Máx:</strong> {% if stats.maximo %}<span class="text-success">{{ stats.maximo|floatformat:0 }}</span>{% else %}-{% endif %} m³/h<br>
+                                        <strong>Promedio:</strong> <span class="text-primary fw-bold">{{ stats.promedio|default:'-'|floatformat:0 }}</span> m³/h
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="border rounded p-3 bg-light">
+                                    <h6 class="text-muted mb-2"><i class="bi bi-calendar-event me-2"></i>Período de Actividad</h6>
+                                    <small class="text-muted">
+                                        {% if stats.primera_medicion %}
+                                            <strong>Inicio:</strong> {{ stats.primera_medicion|date:"d/m/Y" }}<br>
+                                            <strong>Última:</strong> {{ stats.ultima_medicion|date:"d/m/Y H:i" }}
+                                        {% else %}
+                                            Sin mediciones registradas
+                                        {% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="border rounded p-3 bg-light">
+                                    <h6 class="text-muted mb-2"><i class="bi bi-speedometer me-2"></i>Desempeño</h6>
+                                    {% if stats.pendientes > stats.umbral_pendientes %}
+                                        <span class="badge bg-warning text-dark">Requiere atención: {{ stats.pendientes }} mediciones por validar</span>
+                                    {% elif stats.pendientes > 0 %}
+                                        <span class="badge bg-info">En orden: {{ stats.pendientes }} por validar</span>
+                                    {% else %}
+                                        <span class="badge bg-success">Perfecto: todas las mediciones validadas</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <a href="{% url 'admin_mediciones_empresa' empresa.id %}" class="btn btn-primary shadow-sm px-4 py-2 rounded-pill">
+                                    <i class="bi bi-list-ul me-2"></i>Ver Legajo
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gráfico de Consumo Personalizado -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-header" style="background: linear-gradient(135deg, var(--primary-blue), #1e4a6f); color: white;">
+                        <h5 class="mb-0"><i class="bi bi-graph-up me-2"></i>Tendencia de Consumo - {{ empresa.username|title }}</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if has_chart_data %}
+                        <canvas id="consumptionChart" height="80"></canvas>
+                        {% else %}
+                        <div class="text-center text-muted py-5">
+                            <i class="bi bi-inbox fs-1"></i>
+                            <p class="mt-2">No hay datos suficientes para mostrar el gráfico</p>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal de Detalles Mejorado -->
+<div class="modal fade" id="detallesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header" style="background: linear-gradient(135deg, var(--primary-blue), #1e4a6f); color: white;">
+                <h5 class="modal-title"><i class="bi bi-clipboard-data me-2"></i>Detalle de Medición</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Sección Principal -->
+                <div class="row mb-4">
+                    <div class="col-12 text-center">
+                        <div class="p-4" style="background: linear-gradient(135deg, #e3f2fd, #bbdefb); border-radius: 10px;">
+                            <div class="display-4 fw-bold text-primary" id="detalle_valor">-</div>
+                            <small class="text-muted">Valor Medido</small>
+                            <div class="mt-2" id="detalle_estado">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Información General -->
+                <div class="card mb-3">
+                    <div class="card-header bg-light">
+                        <strong><i class="bi bi-info-circle me-2"></i>Información General</strong>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6 mb-2">
+                                <small class="text-muted">Usuario</small>
+                                <div id="detalle_usuario" class="fw-bold">-</div>
+                            </div>
+                            <div class="col-md-6 mb-2">
+                                <small class="text-muted">Fecha y Hora</small>
+                                <div id="detalle_timestamp" class="fw-bold">-</div>
+                            </div>
+                            <div class="col-12 mb-2">
+                                <small class="text-muted">Ubicación</small>
+                                <div id="detalle_ubicacion" class="fw-bold">-</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Coordenadas GPS -->
+                <div class="card mb-3">
+                    <div class="card-header bg-light">
+                        <strong><i class="bi bi-geo-alt me-2"></i>Coordenadas GPS</strong>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <small class="text-muted">📍 Capturadas</small>
+                                <div class="mt-1">
+                                    <small>Lat: <span id="detalle_lat" class="fw-bold">-</span></small><br>
+                                    <small>Long: <span id="detalle_long" class="fw-bold">-</span></small>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <small class="text-muted">🎯 Objetivo</small>
+                                <div class="mt-1">
+                                    <small>Lat: <span id="detalle_target_lat" class="fw-bold">-</span></small><br>
+                                    <small>Long: <span id="detalle_target_long" class="fw-bold">-</span></small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Evidencia Fotográfica -->
+                <div class="card">
+                    <div class="card-header bg-light">
+                        <strong><i class="bi bi-camera me-2"></i>Evidencia Fotográfica</strong>
+                    </div>
+                    <div class="card-body">
+                        <div id="detalle_foto_container" class="text-center">
+                            <img id="detalle_foto" src="" alt="Foto medición" class="img-fluid rounded shadow" style="max-height: 400px;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="bi bi-x-circle"></i> Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Datos de mediciones para el modal
+const medicionesData = {
+    {% for medicion in mediciones %}
+    {{ medicion.id }}: {
+        usuario: "{{ medicion.user.username }}",
+        timestamp: "{{ medicion.timestamp|date:'d/m/Y H:i' }}",
+        valor: "{{ medicion.value }} m³/h",
+        ubicacion: "{{ medicion.ubicacion_manual|default:'Sin especificar' }}",
+        estado: {% if medicion.is_valid %}"validado"{% else %}"pendiente"{% endif %},
+        lat: {% if medicion.captured_latitude %}"{{ medicion.captured_latitude }}"{% else %}null{% endif %},
+        long: {% if medicion.captured_longitude %}"{{ medicion.captured_longitude }}"{% else %}null{% endif %},
+        target_lat: {% if medicion.target_latitude %}"{{ medicion.target_latitude }}"{% else %}null{% endif %},
+        target_long: {% if medicion.target_longitude %}"{{ medicion.target_longitude }}"{% else %}null{% endif %},
+        foto: {% if medicion.photo %}"{{ medicion.photo.url }}"{% else %}null{% endif %}
+    },
+    {% endfor %}
+};
+
+function verDetalles(medicionId) {
+    const datos = medicionesData[medicionId];
+    if (!datos) return;
+    
+    // Cargar datos
+    document.getElementById('detalle_usuario').textContent = datos.usuario;
+    document.getElementById('detalle_timestamp').textContent = datos.timestamp;
+    document.getElementById('detalle_valor').textContent = datos.valor;
+    document.getElementById('detalle_ubicacion').textContent = datos.ubicacion;
+    
+    // Estado
+    const estadoDiv = document.getElementById('detalle_estado');
+    if (datos.estado === 'validado') {
+        estadoDiv.innerHTML = '<span class="badge bg-success fs-6 px-3 py-2"><i class="bi bi-check-circle me-1"></i>Validado</span>';
+    } else {
+        estadoDiv.innerHTML = '<span class="badge bg-warning text-dark fs-6 px-3 py-2"><i class="bi bi-clock-history me-1"></i>Pendiente</span>';
+    }
+    
+    // Coordenadas
+    document.getElementById('detalle_lat').textContent = datos.lat || 'No disponible';
+    document.getElementById('detalle_long').textContent = datos.long || 'No disponible';
+    document.getElementById('detalle_target_lat').textContent = datos.target_lat || 'No definido';
+    document.getElementById('detalle_target_long').textContent = datos.target_long || 'No definido';
+    
+    // Foto
+    const fotoContainer = document.getElementById('detalle_foto_container');
+    const fotoImg = document.getElementById('detalle_foto');
+    if (datos.foto) {
+        fotoImg.src = datos.foto;
+        fotoContainer.style.display = 'block';
+    } else {
+        fotoContainer.innerHTML = '<p class="text-muted">Sin evidencia fotográfica</p>';
+    }
+    
+    // Mostrar modal
+    new bootstrap.Modal(document.getElementById('detallesModal')).show();
+}
+// ===== Chart.js - Company Consumption Trend Chart =====
+document.addEventListener('DOMContentLoaded', () => {
+    const canvasElement = document.getElementById('consumptionChart');
+    if (!canvasElement) return;
+
+    try {
+        const labels = {{ chart_labels|safe }};
+        const data = {{ chart_data|safe }};
+
+        if (labels.length === 0 || data.length === 0) {
+            canvasElement.closest('.card-body').innerHTML = `
+                <div class="text-center text-muted py-5">
+                    <i class="bi bi-inbox fs-1"></i>
+                    <p class="mt-2">No hay datos suficientes para mostrar el gráfico</p>
+                </div>`;
+            return;
+        }
+
+        const ctx = canvasElement.getContext('2d');
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Consumo (m³/h)',
+                    data: data,
+                    borderColor: '#0d6efd',
+                    backgroundColor: 'rgba(13, 110, 253, 0.1)',
+                    borderWidth: 3,
+                    tension: 0.4,
+                    fill: true,
+                    pointRadius: 6,
+                    pointBackgroundColor: '#0d6efd',
+                    pointBorderColor: '#fff',
+                    pointBorderWidth: 2,
+                    pointHoverRadius: 8,
+                    pointHoverBackgroundColor: '#0d6efd'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: true,
+                        position: 'top',
+                        labels: {
+                            usePointStyle: true,
+                            padding: 15,
+                            font: { size: 13, weight: 'bold' }
+                        }
+                    },
+                    tooltip: {
+                        enabled: true,
+                        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                        padding: 12,
+                        titleFont: { size: 14, weight: 'bold' },
+                        bodyFont: { size: 13 },
+                        cornerRadius: 4,
+                        displayColors: false,
+                        callbacks: {
+                            label: (ctx) => `Consumo: ${ctx.parsed.y.toFixed(2)} m³/h`
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        grid: { color: 'rgba(0, 0, 0, 0.05)', drawBorder: false },
+                        ticks: {
+                            font: { size: 12 },
+                            callback: (value) => `${value.toFixed(1)} m³/h`
+                        }
+                    },
+                    x: {
+                        grid: { display: false, drawBorder: false },
+                        ticks: { font: { size: 11 } }
+                    }
+                }
+            }
+        });
+    } catch (error) {
+        console.error('Error inicializando el gráfico de consumo:', error);
+    }
+});
+
+// ===== Download Chart as PNG =====
+function descargarGrafico(event) {
+    event.preventDefault();
+    
+    const canvasElement = document.getElementById('consumptionChart');
+    if (!canvasElement) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Advertencia',
+            text: 'No hay gráfico para descargar',
+            toast: true,
+            position: 'top-end',
+            timer: 3000
+        });
+        return;
+    }
+    
+    try {
+        // Crear un canvas temporal con fondo blanco
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = canvasElement.width;
+        tempCanvas.height = canvasElement.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        
+        // Dibujar fondo blanco
+        tempCtx.fillStyle = '#ffffff';
+        tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+        
+        // Dibujar imagen del gráfico original
+        const img = new Image();
+        img.onload = function() {
+            tempCtx.drawImage(img, 0, 0);
+            
+            // Convertir a blob y descargar
+            tempCanvas.toBlob(function(blob) {
+                const link = document.createElement('a');
+                const url = URL.createObjectURL(blob);
+                
+                const fecha = new Date().toLocaleString('es-ES').replace(/[/:]/g, '').replace(/\s/g, '_');
+                link.href = url;
+                link.download = `grafico_{{ empresa.username }}_${fecha}.png`;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Gráfico descargado',
+                    toast: true,
+                    position: 'top-end',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+            }, 'image/png');
+        };
+        img.src = canvasElement.toDataURL('image/png');
+    } catch (error) {
+        console.error('Error descargando gráfico:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo descargar el gráfico',
+            toast: true,
+            position: 'top-end',
+            timer: 3000
+        });
+    }
+}
+</script>
+{% endblock %}

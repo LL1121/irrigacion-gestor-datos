@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Irrigación - Oil & Gas Reporting</title>
+    <link rel="manifest" href="{% static 'manifest.json' %}">
+    <meta name="theme-color" content="#2c5f8d">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        :root {
+            --primary-blue: #2c5f8d;
+            --secondary-blue: #4a7ba7;
+            --success-green: #28a745;
+            --light-grey: #f8f9fa;
+            --medium-grey: #6c757d;
+            --dark-grey: #343a40;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .app-container {
+            background: white;
+            min-height: 100vh;
+            box-shadow: 0 0 40px rgba(0,0,0,0.2);
+        }
+
+        /* Login Styles */
+        .login-container {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .login-card {
+            max-width: 450px;
+            width: 100%;
+            border: none;
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
+        .brand-logo {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--primary-blue);
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+
+        .brand-subtitle {
+            color: var(--medium-grey);
+            text-align: center;
+            font-size: 0.95rem;
+        }
+
+        /* Dashboard Styles */
+        .dashboard-header {
+            background: linear-gradient(135deg, var(--primary-blue) 0%, var(--secondary-blue) 100%);
+            color: white;
+            padding: 2rem 1.5rem;
+            border-radius: 0;
+        }
+
+        .greeting {
+            font-size: 1.8rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .greeting-subtitle {
+            opacity: 0.9;
+            font-size: 0.95rem;
+        }
+
+        .action-card {
+            border: none;
+            border-radius: 12px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+
+        .action-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+        }
+
+        .action-card-green {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            color: white;
+            padding: 2.5rem;
+        }
+
+        .action-card-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .action-card-title {
+            font-size: 1.6rem;
+            font-weight: 700;
+        }
+
+        /* Form Styles */
+        .form-label {
+            font-weight: 600;
+            color: var(--dark-grey);
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+        }
+
+        .form-control, .form-select {
+            padding: 1rem;
+            font-size: 1.1rem;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            transition: border-color 0.2s;
+        }
+
+        .form-control:focus, .form-select:focus {
+            border-color: var(--primary-blue);
+            box-shadow: 0 0 0 0.2rem rgba(44, 95, 141, 0.15);
+        }
+
+        .btn-primary {
+            background: var(--primary-blue);
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-primary:hover {
+            background: var(--secondary-blue);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(44, 95, 141, 0.3);
+        }
+
+        .btn-success {
+            background: var(--success-green);
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 8px;
+        }
+
+        .btn-outline-secondary {
+            border: 2px solid var(--medium-grey);
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 8px;
+        }
+
+        .custom-file-upload {
+            display: inline-block;
+            padding: 1rem 2rem;
+            cursor: pointer;
+            background: var(--medium-grey);
+            color: white;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.2s;
+            text-align: center;
+            width: 100%;
+        }
+
+        .custom-file-upload:hover {
+            background: var(--dark-grey);
+            transform: translateY(-2px);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .table-responsive {
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        .table {
+            margin-bottom: 0;
+        }
+
+        .table thead {
+            background: var(--primary-blue);
+            color: white;
+        }
+
+        .table th {
+            font-weight: 600;
+            border: none;
+            padding: 1rem;
+        }
+
+        .table td {
+            padding: 1rem;
+            vertical-align: middle;
+        }
+
+        .alert {
+            border: none;
+            border-radius: 8px;
+            padding: 1rem 1.5rem;
+        }
+
+        .badge {
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        /* Notification Styles - Removed, using SweetAlert2 */
+
+        @media (max-width: 768px) {
+            .greeting {
+                font-size: 1.4rem;
+            }
+            
+            .action-card-title {
+                font-size: 1.3rem;
+            }
+
+            .notification-container {
+                max-width: calc(100% - 40px);
+            }
+
+            .notification {
+                min-width: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        {% block content %}{% endblock %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Django Messages with SweetAlert2 Toast Notifications -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Display Django messages as SweetAlert2 toasts
+            {% if messages %}
+                {% for message in messages %}
+                    const iconMap = {
+                        'success': 'success',
+                        'error': 'error',
+                        'warning': 'warning',
+                        'info': 'info',
+                        'debug': 'info'
+                    };
+                    
+                    const messageText = "{{ message }}";
+                    const messageTags = "{{ message.tags }}";
+                    const icon = iconMap[messageTags] || 'info';
+                    
+                    Swal.fire({
+                        icon: icon,
+                        title: messageText,
+                        toast: true,
+                        position: 'top-end',
+                        showConfirmButton: false,
+                        timer: 4000,
+                        timerProgressBar: true,
+                        didOpen: (toast) => {
+                            toast.addEventListener('mouseenter', Swal.stopTimer);
+                            toast.addEventListener('mouseleave', Swal.resumeTimer);
+                        }
+                    });
+                {% endfor %}
+            {% endif %}
+        });
+    </script>
+    
+    <!-- Form Loading States Handler (Anti-Spam UI) -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Add loading state to all forms to prevent double submissions
+            const forms = document.querySelectorAll('form');
+            
+            forms.forEach(form => {
+                form.addEventListener('submit', function(e) {
+                    // Get the submit button
+                    const submitBtn = form.querySelector('button[type="submit"]');
+                    
+                    if (submitBtn) {
+                        // Validate HTML5 constraints first
+                        if (!form.checkValidity()) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            form.classList.add('was-validated');
+                            return;
+                        }
+                        
+                        // Disable submit button immediately to prevent multiple clicks
+                        submitBtn.disabled = true;
+                        
+                        // Change button text with spinner
+                        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Guardando...';
+                        submitBtn.classList.add('disabled');
+                        
+                        // Allow form submission to proceed naturally
+                        // Button will be re-enabled if there's a validation error from server
+                        // Otherwise page will reload/redirect on success
+                    }
+                });
+            });
+        });
+    </script>
+    <script>
+        function setCurrentDate() {
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            const date = new Date().toLocaleDateString('es-ES', options);
+            const dateElement = document.getElementById('currentDate');
+            if (dateElement) {
+                dateElement.textContent = date;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            setCurrentDate();
+
+            const fileInput = document.getElementById('fileInput');
+            if (fileInput) {
+                fileInput.addEventListener('change', (e) => {
+                    const fileName = e.target.files[0] ? e.target.files[0].name : 'Ningún archivo seleccionado';
+                    const fileNameLabel = document.getElementById('fileName');
+                    if (fileNameLabel) {
+                        fileNameLabel.textContent = fileName;
+                        fileNameLabel.classList.toggle('text-success', !!e.target.files[0]);
+                    }
+                });
+            }
+
+            const measurementForm = document.getElementById('measurementForm');
+            if (measurementForm) {
+                measurementForm.addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    showNotification('¡Éxito!', 'Medición guardada exitosamente', 'success', 3500);
+                    measurementForm.reset();
+                    const fileNameLabel = document.getElementById('fileName');
+                    if (fileNameLabel) {
+                        fileNameLabel.textContent = 'Ningún archivo seleccionado';
+                        fileNameLabel.classList.remove('text-success');
+                    }
+                });
+            }
+        });
+    </script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .catch((err) => console.error('SW registration failed', err));
+            });
+        }
+    </script>
+    <script>
+        // Network status toasts (SweetAlert2)
+        (function() {
+            const showOffline = () => {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Sin conexión a Internet',
+                    position: 'top-end',
+                    toast: true,
+                    showConfirmButton: false
+                });
+            };
+
+            const showOnline = () => {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Conexión Restaurada',
+                    position: 'top-end',
+                    toast: true,
+                    showConfirmButton: false,
+                    timer: 3000
+                });
+            };
+
+            window.addEventListener('offline', showOffline);
+            window.addEventListener('online', showOnline);
+
+            if (!navigator.onLine) {
+                showOffline();
+            }
+        })();
+    </script>
+</body>
+</html>

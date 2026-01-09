@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div>
+    <div class="dashboard-header">
+        <div class="container-fluid">
+            <div class="d-flex align-items-center" style="gap: 1rem;">
+                <div style="flex: 1;">
+                    <div class="greeting">Nueva Medición</div>
+                    <div class="greeting-subtitle">Complete los datos del registro</div>
+                </div>
+                <div style="flex: 0 0 auto;" class="text-center">
+                    <a href="{% url 'dashboard' %}" class="d-inline-block" style="text-decoration: none;">
+                        <img src="{% static 'logo-blanco.png' %}" alt="Irrigación" style="height: 60px;">
+                    </a>
+                </div>
+                <div style="flex: 1;" class="text-end">
+                    <a class="btn btn-outline-light" href="{% url 'dashboard' %}">
+                        <i class="bi bi-arrow-left"></i> Volver
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid p-4">
+        <div class="row justify-content-center">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-body p-4">
+                        <form id="measurementForm" method="post" enctype="multipart/form-data" action="{% url 'cargar' %}">
+                            {% csrf_token %}
+                            <div class="mb-4">
+                                <label for="ubicacion_manual" class="form-label">
+                                    <i class="bi bi-geo-alt-fill me-2"></i>Ubicación / Pozo
+                                </label>
+                                <input type="text" class="form-control" id="ubicacion_manual" name="ubicacion_manual" 
+                                       placeholder="Ej: Pozo Norte-12 o Sector A" required>
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="valor_caudalimetro" class="form-label">
+                                    <i class="bi bi-speedometer2 me-2"></i>Valor Caudalímetro (m³/h)
+                                </label>
+                                <input type="number" step="0.01" min="0" class="form-control" id="valor_caudalimetro" 
+                                       name="valor_caudalimetro" placeholder="Ej: 1245.50" required>
+                                <small class="text-muted">Ingrese el valor medido en metros cúbicos por hora (no negativo)</small>
+                            </div>
+
+                            <div class="mb-4">
+                                <label class="form-label">
+                                    <i class="bi bi-camera-fill me-2"></i>Fotografía de Caudalímetro
+                                </label>
+                                <input type="file" id="foto_evidencia" name="foto_evidencia" accept="image/*" capture="environment" class="form-control">
+                                <small class="text-muted d-block mt-2">Suba una foto de la lectura del caudalímetro (Máx: 10MB)</small>
+                                <small class="text-danger d-block mt-1" id="fileSizeWarning" style="display:none;">⚠️ Archivo demasiado grande. Máximo 10MB.</small>
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="observaciones" class="form-label">
+                                    <i class="bi bi-pencil-square me-2"></i>Observaciones (Opcional)
+                                </label>
+                                <textarea class="form-control" id="observaciones" name="observaciones" rows="3" 
+                                          placeholder="Agregue cualquier observación relevante..."></textarea>
+                            </div>
+
+                            <div class="alert alert-info d-flex align-items-center mb-4">
+                                <i class="bi bi-info-circle-fill me-3 fs-5"></i>
+                                <div>
+                                    <small><strong>Timestamp automático:</strong> La medición será registrada con la fecha y hora actual del sistema</small>
+                                </div>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <a class="btn btn-outline-secondary w-100" href="{% url 'dashboard' %}">
+                                        <i class="bi bi-x-circle me-2"></i>Cancelar
+                                    </a>
+                                </div>
+                                <div class="col-md-6">
+                                    <button type="submit" class="btn btn-success w-100">
+                                        <i class="bi bi-check-circle me-2"></i>Guardar Medición
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Validar tamaño de archivo en tiempo real
+    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB en bytes
+    const fileInput = document.getElementById('foto_evidencia');
+    const fileSizeWarning = document.getElementById('fileSizeWarning');
+    const submitButton = document.querySelector('button[type="submit"]');
+
+    if (fileInput) {
+        fileInput.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                if (file.size > MAX_FILE_SIZE) {
+                    fileSizeWarning.style.display = 'block';
+                    submitButton.disabled = true;
+                    submitButton.style.opacity = '0.5';
+                    submitButton.style.cursor = 'not-allowed';
+                } else {
+                    fileSizeWarning.style.display = 'none';
+                    submitButton.disabled = false;
+                    submitButton.style.opacity = '1';
+                    submitButton.style.cursor = 'pointer';
+                }
+            }
+        });
+    }
+
+    // Validar formulario antes de enviar
+    document.getElementById('measurementForm').addEventListener('submit', function(e) {
+        const valor = parseFloat(document.getElementById('valor_caudalimetro').value);
+        
+        // Validar valor no negativo
+        if (valor < 0) {
+            e.preventDefault();
+            alert('El valor del caudalímetro no puede ser negativo');
+            return false;
+        }
+
+        // Validar tamaño de archivo
+        const file = fileInput.files[0];
+        if (file && file.size > MAX_FILE_SIZE) {
+            e.preventDefault();
+            alert('El archivo es demasiado grande. Máximo 10MB.');
+            return false;
+        }
+    });
+</script>
+{% endblock %}

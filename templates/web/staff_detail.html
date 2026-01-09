@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div>
+    <div class="dashboard-header">
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="greeting">Legajo: {{ empresa.username }}</div>
+                    <div class="greeting-subtitle">
+                        <i class="bi bi-envelope me-2"></i>{{ empresa.email|default:"Sin email" }}
+                    </div>
+                </div>
+                <a class="btn btn-outline-light" href="{% url 'staff_empresas' %}">
+                    <i class="bi bi-arrow-left"></i> Volver
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid p-4">
+        <div class="row">
+            <div class="col-12">
+                <h4 class="mb-3">
+                    <i class="bi bi-clock-history me-2"></i>Historial de Mediciones
+                </h4>
+                <div class="card">
+                    <div class="card-body p-0">
+                        {% if mediciones %}
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha y Hora</th>
+                                        <th>Ubicación Manual</th>
+                                        <th>Valor (m³/h)</th>
+                                        <th>Foto</th>
+                                        <th>Estado</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for medicion in mediciones %}
+                                    <tr>
+                                        <td>
+                                            <i class="bi bi-calendar3"></i> 
+                                            {{ medicion.timestamp|date:"d/m/Y H:i" }}
+                                        </td>
+                                        <td>
+                                            {% if medicion.ubicacion_manual %}
+                                                <i class="bi bi-geo-alt"></i> {{ medicion.ubicacion_manual }}
+                                            {% else %}
+                                                <span class="text-muted">Sin especificar</span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <strong>{{ medicion.value }}</strong>
+                                        </td>
+                                        <td>
+                                            {% if medicion.photo %}
+                                                <a href="{{ medicion.photo.url }}" target="_blank">
+                                                    <img src="{{ medicion.photo.url }}" 
+                                                         alt="Evidencia" 
+                                                         style="width: 50px; height: 50px; object-fit: cover; border-radius: 4px; cursor: pointer;">
+                                                </a>
+                                            {% else %}
+                                                <span class="text-muted">
+                                                    <i class="bi bi-image"></i> Sin foto
+                                                </span>
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if medicion.is_valid %}
+                                                <span class="badge bg-success">Validado</span>
+                                            {% else %}
+                                                <span class="badge bg-warning text-dark">Pendiente</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        {% else %}
+                        <div class="p-4">
+                            <div class="alert alert-warning mb-0">
+                                <i class="bi bi-exclamation-triangle me-2"></i>
+                                <strong>Sin registros:</strong> Esta empresa aún no ha cargado mediciones.
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if mediciones %}
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-bar-chart"></i> Resumen
+                        </h5>
+                        <div class="row text-center">
+                            <div class="col-md-4">
+                                <h3 class="text-primary">{{ mediciones.count }}</h3>
+                                <p class="text-muted">Total de mediciones</p>
+                            </div>
+                            <div class="col-md-4">
+                                <h3 class="text-success">{{ mediciones|length }}</h3>
+                                <p class="text-muted">Este período</p>
+                            </div>
+                            <div class="col-md-4">
+                                <h3 class="text-warning">
+                                    {{ mediciones|selectattr:"is_valid"|list|length|default:0 }}
+                                </h3>
+                                <p class="text-muted">Validadas</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="login-container">
+    <div class="card login-card">
+        <div class="card-body p-5">
+            <div class="text-center mb-4">
+                <img src="{% static 'logo-color.png' %}" alt="Irrigación" style="max-width: 350px; height: auto;">
+            </div>
+            <p class="brand-subtitle mb-4 text-center">Sistema de Medición y Reporte</p>
+            
+            {% if messages %}
+                {% for message in messages %}
+                <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+            {% endif %}
+            
+            <form id="loginForm" method="post" action="{% url 'login' %}">
+                {% csrf_token %}
+                <div class="mb-4">
+                    <label for="username" class="form-label">Usuario / Empresa</label>
+                    <input type="text" class="form-control" id="username" name="username" placeholder="Ingrese su usuario" required autofocus>
+                </div>
+                
+                <div class="mb-4">
+                    <label for="password" class="form-label">Contraseña</label>
+                    <input type="password" class="form-control" id="password" name="password" placeholder="Ingrese su contraseña" required>
+                </div>
+                
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-box-arrow-in-right me-2"></i>Ingresar
+                    </button>
+                </div>
+            </form>
+            
+            <div class="text-center mt-4">
+                <small class="text-muted">¿Problemas para ingresar? <a href="#">Contactar soporte</a></small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

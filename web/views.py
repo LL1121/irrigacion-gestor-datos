@@ -1,0 +1,437 @@
+from pathlib import Path
+from datetime import timedelta
+import json
+import csv
+from datetime import datetime
+
+from django.conf import settings
+from django.contrib import messages
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.decorators import login_required
+from django.contrib.auth.mixins import UserPassesTestMixin
+from django.contrib.auth.models import User
+from django.db import models
+from django.db.models import Max
+from django.http import FileResponse, HttpResponseNotFound
+from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
+from django.views.generic import DetailView, ListView
+
+from .models import Medicion
+
+
+def login_view(request):
+	"""Vista de login con autenticación Django"""
+	if request.user.is_authenticated:
+		return redirect('dashboard')
+	
+	if request.method == 'POST':
+		username = request.POST.get('username')
+		password = request.POST.get('password')
+		
+		user = authenticate(request, username=username, password=password)
+		if user is not None:
+			login(request, user)
+			return redirect('dashboard')
+		else:
+			messages.error(request, 'Usuario o contraseña incorrectos')
+	
+	return render(request, "web/login.html")
+
+
+def logout_view(request):
+	"""Vista para cerrar sesión"""
+	logout(request)
+	messages.success(request, 'Sesión cerrada correctamente')
+	return redirect('login')
+
+
+@login_required
+def dashboard(request):
+	"""Dashboard del operario con sus últimas mediciones"""
+	if request.user.is_staff:
+		# Si es staff, mostrar últimas mediciones de todas las empresas
+		mediciones = Medicion.objects.all().order_by('-timestamp')[:10]
+	else:
+		# Si es operario, mostrar solo sus mediciones
+		mediciones = Medicion.objects.filter(user=request.user).order_by('-timestamp')[:5]
+	
+	context = {
+		'mediciones': mediciones,
+	}
+	return render(request, "web/dashboard.html", context)
+
+
+@login_required
+def cargar_medicion(request):
+	"""Vista para cargar nueva medición con manejo robusto de errores y rate limiting"""
+	if request.method == 'POST':
+		try:
+			# ===== RATE LIMITING: Check if user submitted a measurement less than 30 seconds ago =====
+			last_medicion = Medicion.objects.filter(user=request.user).order_by('-timestamp').first()
+			
+			if last_medicion:
+				time_since_last = timezone.now() - last_medicion.timestamp
+				if time_since_last < timedelta(seconds=30):
+					messages.warning(request, 'Espere unos segundos antes de enviar otra medición')
+					return redirect('dashboard')
+			
+			# Obtener datos del formulario
+			ubicacion_manual = request.POST.get('ubicacion_manual')
+			valor_caudalimetro = request.POST.get('valor_caudalimetro')
+			foto_evidencia = request.FILES.get('foto_evidencia')
+			observaciones = request.POST.get('observaciones', '')
+			
+			# Validar que el valor no esté vacío
+			if not valor_caudalimetro:
+				messages.error(request, 'El valor del caudalímetro es obligatorio')
+				return redirect('cargar')
+			
+			# Crear medición
+			medicion = Medicion(
+				user=request.user,
+				value=valor_caudalimetro,
+				ubicacion_manual=ubicacion_manual,
+				photo=foto_evidencia,
+				observation=observaciones,
+			)
+			
+			# full_clean() se llamará automáticamente en save()
+			medicion.save()
+			
+			messages.success(request, 'Medición guardada exitosamente')
+			return redirect('dashboard')
+		
+		except ValueError as e:
+			messages.error(request, f'Error en los datos: {str(e)}')
+			return redirect('cargar')
+		except Exception as e:
+			from django.core.exceptions import ValidationError
+			if isinstance(e, ValidationError):
+				# Mostrar cada error de validación
+				for field, error_list in e.error_dict.items():
+					for error in error_list:
+						messages.error(request, f'{field}: {error.message}')
+			else:
+				messages.error(request, 'Error al guardar la medición. Por favor, intenta nuevamente.')
+			return redirect('cargar')
+	
+	return render(request, "web/formulario.html")
+
+
+def service_worker(request):
+	sw_file = Path(settings.BASE_DIR) / "static" / "sw.js"
+	if not sw_file.exists():
+		return HttpResponseNotFound("Service worker not found")
+	return FileResponse(open(sw_file, "rb"), content_type="application/javascript")
+
+
+# Staff Command Center
+class StaffCheckMixin(UserPassesTestMixin):
+	"""Mixin para verificar que el usuario sea staff"""
+	def test_func(self):
+		return self.request.user.is_staff
+
+
+# Admin Panel Views (Custom)
+@login_required
+def admin_usuarios_view(request):
+	"""Vista para gestionar usuarios"""
+	if not request.user.is_staff:
+		messages.error(request, 'No tienes permisos para acceder a esta sección')
+		return redirect('dashboard')
+	
+	usuarios = User.objects.annotate(
+		latest_measurement=Max('mediciones__timestamp')
+	).order_by('-latest_measurement')
+	
+	return render(request, 'web/admin_usuarios.html', {'usuarios': usuarios})
+
+
+@login_required
+def admin_crear_usuario_view(request):
+	"""Crear nuevo usuario (solo superusuario)"""
+	if not request.user.is_superuser:
+		return redirect('dashboard')
+	
+	if request.method == 'POST':
+		username = request.POST.get('username')
+		email = request.POST.get('email')
+		password = request.POST.get('password')
+		tipo = request.POST.get('tipo')
+		
+		if User.objects.filter(username=username).exists():
+			messages.error(request, f'El usuario {username} ya existe')
+			return redirect('admin_usuarios')
+		
+		user = User.objects.create_user(
+			username=username,
+			email=email,
+			password=password,
+			is_staff=(tipo == 'staff')
+		)
+		messages.success(request, f'Usuario {username} creado exitosamente')
+		return redirect('admin_usuarios')
+	
+	return redirect('admin_usuarios')
+
+
+@login_required
+def admin_editar_usuario_view(request, user_id):
+	"""Editar usuario existente (solo superusuario)"""
+	if not request.user.is_superuser:
+		return redirect('dashboard')
+	
+	usuario = get_object_or_404(User, id=user_id)
+	
+	if request.method == 'POST':
+		new_username = request.POST.get('username')
+		# Verificar que el username no exista (excepto si es el mismo)
+		if User.objects.filter(username=new_username).exclude(id=usuario.id).exists():
+			messages.error(request, f'El usuario {new_username} ya existe')
+			return render(request, 'web/admin_editar_usuario.html', {'usuario': usuario})
+		
+		usuario.username = new_username
+		usuario.email = request.POST.get('email')
+		password = request.POST.get('password')
+		
+		if password:
+			usuario.set_password(password)
+		
+		usuario.save()
+		
+		messages.success(request, f'Usuario {usuario.username} actualizado')
+		return redirect('admin_usuarios')
+	
+	return render(request, 'web/admin_editar_usuario.html', {'usuario': usuario})
+
+
+@login_required
+def admin_eliminar_usuario_view(request, user_id):
+	"""Eliminar usuario (solo superusuario)"""
+	if not request.user.is_superuser:
+		return redirect('dashboard')
+	
+	if request.method == 'POST':
+		usuario = get_object_or_404(User, id=user_id)
+		if not usuario.is_superuser:
+			username = usuario.username
+			usuario.delete()
+			messages.success(request, f'Usuario {username} eliminado')
+		else:
+			messages.error(request, 'No se puede eliminar un superusuario')
+	
+	return redirect('admin_usuarios')
+
+
+@login_required
+def admin_empresas_view(request):
+	"""Lista de empresas con sus estadísticas"""
+	if not request.user.is_staff:
+		return redirect('dashboard')
+	
+	from django.db.models import Count
+	empresas = User.objects.filter(is_staff=False, is_superuser=False).annotate(
+		total_mediciones=Count('mediciones'),
+		latest_measurement=Max('mediciones__timestamp')
+	).order_by('-latest_measurement')
+	
+	return render(request, 'web/admin_empresas.html', {'empresas': empresas})
+
+
+@login_required
+def admin_empresa_legajo_view(request, user_id):
+	"""Legajo completo de una empresa con todas sus mediciones y gráfico personalizado"""
+	if not request.user.is_staff:
+		return redirect('dashboard')
+	
+	from django.db.models import Count, Avg, Min, Max
+	empresa = get_object_or_404(User, id=user_id, is_staff=False)
+	mediciones = Medicion.objects.filter(user=empresa).order_by('-timestamp')
+	
+	# Estadísticas avanzadas
+	stats = mediciones.aggregate(
+		total=Count('id'),
+		validadas=Count('id', filter=models.Q(is_valid=True)),
+		pendientes=Count('id', filter=models.Q(is_valid=False)),
+		promedio=Avg('value'),
+		minimo=Min('value'),
+		maximo=Max('value'),
+		primera_medicion=Min('timestamp'),
+		ultima_medicion=Max('timestamp')
+	)
+	
+	# Calcular porcentaje de validación
+	if stats['total'] > 0:
+		stats['porcentaje_validadas'] = round((stats['validadas'] / stats['total']) * 100)
+		stats['umbral_pendientes'] = round(stats['total'] * 0.2)  # 20% del total
+	else:
+		stats['porcentaje_validadas'] = 0
+		stats['umbral_pendientes'] = 0
+	
+	# Preparar datos para Chart.js - Últimas 20 mediciones de la empresa
+	chart_mediciones = Medicion.objects.filter(user=empresa).order_by('timestamp')[:20]
+	chart_labels = [med.timestamp.strftime('%d/%m %H:%M') for med in chart_mediciones]
+	chart_data = [float(med.value) for med in chart_mediciones]
+	
+	context = {
+		'empresa': empresa,
+		'mediciones': mediciones,
+		'stats': stats,
+		'chart_labels': json.dumps(chart_labels),
+		'chart_data': json.dumps(chart_data),
+		'has_chart_data': len(chart_data) > 0,
+	}
+	return render(request, 'web/admin_empresa_legajo.html', context)
+
+
+@login_required
+def admin_mediciones_empresa_view(request, user_id):
+	"""Ver mediciones de una empresa específica"""
+	if not request.user.is_staff:
+		return redirect('dashboard')
+	
+	empresa = get_object_or_404(User, id=user_id, is_staff=False)
+	mediciones = Medicion.objects.filter(user=empresa).order_by('-timestamp')
+	
+	return render(request, 'web/admin_mediciones_empresa.html', {
+		'mediciones': mediciones,
+		'empresa': empresa
+	})
+
+
+@login_required
+def admin_validar_medicion_view(request, medicion_id):
+	"""Validar una medición"""
+	if not request.user.is_staff:
+		return redirect('dashboard')
+	
+	if request.method == 'POST':
+		medicion = get_object_or_404(Medicion, id=medicion_id)
+		medicion.is_valid = True
+		medicion.save()
+		messages.success(request, 'Medición validada correctamente')
+		return redirect('admin_mediciones_empresa', user_id=medicion.user.id)
+	
+	return redirect('admin_empresas')
+
+
+@login_required
+def admin_eliminar_medicion_view(request, medicion_id):
+	"""Eliminar una medición"""
+	if not request.user.is_staff:
+		return redirect('dashboard')
+	
+	if request.method == 'POST':
+		medicion = get_object_or_404(Medicion, id=medicion_id)
+		user_id = medicion.user.id
+		medicion.delete()
+		messages.success(request, 'Medición eliminada')
+		return redirect('admin_mediciones_empresa', user_id=user_id)
+	
+	return redirect('admin_empresas')
+
+
+@login_required
+def admin_editar_perfil_empresa_view(request, user_id):
+	"""Editar perfil de empresa (username, email, ubicación y descripción) - solo superusuario"""
+	if not request.user.is_superuser:
+		return redirect('dashboard')
+	
+	empresa = get_object_or_404(User, id=user_id, is_staff=False)
+	
+	# Obtener o crear el perfil
+	perfil, created = empresa.empresa_perfil, None
+	try:
+		perfil = empresa.empresa_perfil
+	except:
+		from .models import EmpresaPerfil
+		perfil = EmpresaPerfil.objects.create(usuario=empresa)
+	
+	if request.method == 'POST':
+		# Actualizar datos de usuario
+		new_username = request.POST.get('username', '').strip()
+		new_email = request.POST.get('email', '').strip()
+		
+		# Validar username único (si se está cambiando)
+		if new_username and new_username != empresa.username:
+			if User.objects.filter(username=new_username).exists():
+				messages.error(request, 'El nombre de usuario ya está en uso')
+				return redirect('admin_editar_perfil_empresa', user_id=empresa.id)
+			empresa.username = new_username
+		
+		# Actualizar email
+		empresa.email = new_email
+		empresa.save()
+		
+		# Actualizar perfil
+		perfil.ubicacion = request.POST.get('ubicacion', '')
+		perfil.descripcion = request.POST.get('descripcion', '')
+		perfil.save()
+		
+		messages.success(request, f'Información de {empresa.username} actualizada correctamente')
+		return redirect('admin_empresa_legajo', user_id=empresa.id)
+	
+	context = {
+		'empresa': empresa,
+		'perfil': perfil,
+	}
+	return render(request, 'web/admin_editar_perfil_empresa.html', context)
+
+
+@login_required
+def exportar_csv(request):
+	"""Exportar historial de mediciones como CSV"""
+	# Determinar qué mediciones exportar según permisos
+	if request.user.is_staff:
+		# Si es staff, verificar si se pasó user_id para exportar mediciones específicas
+		user_id = request.GET.get('user_id')
+		if user_id:
+			# Exportar mediciones de un usuario específico
+			try:
+				usuario = User.objects.get(id=user_id)
+				mediciones = Medicion.objects.filter(user=usuario).order_by('-timestamp')
+				filename_suffix = f"_{usuario.username}"
+			except User.DoesNotExist:
+				messages.error(request, 'Usuario no encontrado')
+				return redirect('dashboard')
+		else:
+			# Exportar todas las mediciones del sistema
+			mediciones = Medicion.objects.all().order_by('-timestamp')
+			filename_suffix = "_sistema_completo"
+	else:
+		# Usuario regular: exportar solo sus mediciones
+		mediciones = Medicion.objects.filter(user=request.user).order_by('-timestamp')
+		filename_suffix = f"_{request.user.username}"
+	
+	# Crear respuesta CSV con encoding utf-8-sig (para soporte de caracteres españoles en Excel)
+	response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+	
+	# Generar nombre de archivo con fecha actual
+	fecha_actual = datetime.now().strftime('%d%m%Y_%H%M%S')
+	filename = f'mediciones{filename_suffix}_{fecha_actual}.csv'
+	response['Content-Disposition'] = f'attachment; filename="{filename}"'
+	
+	# Escribir BOM para UTF-8 (para Excel)
+	response.write('\ufeff')
+	
+	# Crear escritor CSV
+	writer = csv.writer(response)
+	
+	# Escribir encabezados
+	writer.writerow(['Timestamp', 'Usuario (Empresa)', 'Ubicación Manual', 'Valor (m³/h)', 'Foto URL', 'Estado', 'Ubicación GPS', 'Observaciones'])
+	
+	# Escribir datos de mediciones
+	for medicion in mediciones:
+		writer.writerow([
+			medicion.timestamp.strftime('%d/%m/%Y %H:%M:%S'),
+			medicion.user.username,
+			medicion.ubicacion_manual or '-',
+			medicion.value,
+			medicion.photo.url if medicion.photo else '-',
+			'Validado' if medicion.is_valid else 'Pendiente',
+			f"{medicion.captured_latitude or '-'}, {medicion.captured_longitude or '-'}",
+			medicion.observation or '-'
+		])
+	
+	return response

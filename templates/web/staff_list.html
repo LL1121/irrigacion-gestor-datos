@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div>
+    <div class="dashboard-header">
+        <div class="container-fluid">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="greeting">Panel de Supervisión</div>
+                    <div class="greeting-subtitle">Seleccione una empresa para ver su legajo</div>
+                </div>
+                <a class="btn btn-outline-light" href="{% url 'dashboard' %}">
+                    <i class="bi bi-arrow-left"></i> Volver
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid p-4">
+        <div class="row g-4">
+            {% for empresa in empresas %}
+            <div class="col-12 col-md-6 col-lg-4">
+                <div class="card action-card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title">
+                            <i class="bi bi-building"></i> {{ empresa.username }}
+                        </h5>
+                        <p class="card-text text-muted mb-2">
+                            <i class="bi bi-envelope"></i> {{ empresa.email|default:"Sin email" }}
+                        </p>
+                        {% if empresa.latest_measurement %}
+                        <p class="card-text">
+                            <small class="text-success">
+                                <i class="bi bi-check-circle"></i> 
+                                Última medición: {{ empresa.latest_measurement|date:"d/m/Y H:i" }}
+                            </small>
+                        </p>
+                        {% else %}
+                        <p class="card-text">
+                            <small class="text-warning">
+                                <i class="bi bi-exclamation-circle"></i> 
+                                Sin mediciones
+                            </small>
+                        </p>
+                        {% endif %}
+                        <div class="mt-auto pt-3">
+                            <a href="{% url 'staff_detalle' empresa.id %}" class="btn btn-primary w-100">
+                                <i class="bi bi-folder2-open"></i> Ver Legajo
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle me-2"></i>
+                    No hay empresas registradas en el sistema.
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
