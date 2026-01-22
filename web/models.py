@@ -10,6 +10,8 @@ from django.core.files.base import File
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from PIL import Image
 
+from .utils import extract_exif_metadata, compress_and_resize_image
+
 
 def medicion_photo_path(instance, filename):
 	"""Generar ruta dinámica: evidencias/YEAR/WEEK/user_id/filename"""
@@ -111,41 +113,46 @@ class Medicion(models.Model):
 			raise ValidationError(errors)
 
 	def save(self, *args, **kwargs):
-		"""Validar y comprimir imagen antes de guardar"""
+		"""Validar, extraer EXIF y comprimir imagen antes de guardar"""
 		self.full_clean()
 
-		# Comprimir imagen si existe
+		# Procesar imagen si existe
 		if self.photo:
 			try:
-				img = Image.open(self.photo)
-
-				# Convertir a RGB para evitar problemas con transparencias
-				if img.mode != 'RGB':
-					img = img.convert('RGB')
-
-				# Redimensionar si excede 1000px en algún eje
-				max_size = 1000
-				if img.width > max_size or img.height > max_size:
-					img.thumbnail((max_size, max_size), Image.LANCZOS)
-
-				# Guardar en buffer como JPEG con calidad 70
-				buffer = BytesIO()
-				img.save(buffer, format='JPEG', quality=70)
-				buffer.seek(0)
-
-				# Crear archivo en memoria reemplazando el original
-				file_name, _ = os.path.splitext(self.photo.name)
-				optimized_file = InMemoryUploadedFile(
-					buffer,
-					field_name=self.photo.field.name,
-					name=f"{file_name}.jpg",
-					content_type='image/jpeg',
-					size=buffer.getbuffer().nbytes,
-					charset=None,
+				# 1. EXTRAER EXIF PRIMERO (antes de comprimir y perder metadata)
+				metadata = extract_exif_metadata(self.photo)
+				
+				# Guardar coordenadas GPS si existen en EXIF
+				if metadata['latitude'] is not None:
+					self.captured_latitude = metadata['latitude']
+				if metadata['longitude'] is not None:
+					self.captured_longitude = metadata['longitude']
+				
+				# 2. COMPRIMIR Y OPTIMIZAR imagen
+				# Resetear puntero del archivo antes de comprimir
+				if hasattr(self.photo, 'seek'):
+					self.photo.seek(0)
+				
+				compressed_buffer = compress_and_resize_image(
+					self.photo,
+					max_size=1280,
+					quality=70
 				)
-				self.photo = optimized_file
-			except Exception:
-				# Si falla la compresión, continuar con la imagen original
+				
+				if compressed_buffer:
+					# 3. REEMPLAZAR con versión optimizada
+					file_name, _ = os.path.splitext(self.photo.name)
+					optimized_file = InMemoryUploadedFile(
+						compressed_buffer,
+						field_name=self.photo.field.name,
+						name=f"{file_name}.jpg",
+						content_type='image/jpeg',
+						size=sys.getsizeof(compressed_buffer.getvalue()),
+						charset=None,
+					)
+					self.photo = optimized_file
+			except Exception as e:
+				# Si falla el procesamiento, continuar con la imagen original
 				pass
 
 		super().save(*args, **kwargs)
