@@ -19,6 +19,13 @@
                     </a>
                 </div>
                 <div style="flex: 1;" class="text-end">
+                    <button id="syncButton" class="btn btn-outline-light" style="margin-right: 0.5rem; position: relative;" onclick="manualSync()" title="Sincronizar ahora">
+                        <i class="bi bi-arrow-repeat"></i>
+                        <span id="pendingUploadsBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display: none;">0</span>
+                    </button>
+                    <a href="/admin/" class="btn btn-outline-light" style="margin-right: 0.5rem;">
+                        <i class="bi bi-gear"></i>
+                    </a>
                     <form method="post" action="{% url 'logout' %}" style="display: inline;">
                         {% csrf_token %}
                         <button type="submit" class="btn btn-outline-light">
@@ -67,11 +74,11 @@
                 </a>
             </div>
             <div class="col-md-3">
-                <a href="/admin/" class="card action-card h-100 text-decoration-none" style="background: linear-gradient(135deg, #6f42c1 0%, #9b59b6 100%); color: white;">
+                <a href="{% url 'weekly_route' %}" class="card action-card h-100 text-decoration-none" style="background: linear-gradient(135deg, #17a2b8 0%, #20c997 100%); color: white;">
                     <div class="card-body text-center">
-                        <i class="bi bi-gear fs-1 mb-2"></i>
-                        <h5 class="card-title">Configuración</h5>
-                        <p class="mb-0">Panel Django Admin</p>
+                        <i class="bi bi-map-fill fs-1 mb-2"></i>
+                        <h5 class="card-title">Ver Mapa</h5>
+                        <p class="mb-0">Visualizar ruta semanal</p>
                     </div>
                 </a>
             </div>
@@ -93,12 +100,21 @@
                     </div>
                 </a>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-3">
                 <a href="{% url 'cargar' %}" class="card action-card h-100 text-decoration-none" style="background: linear-gradient(135deg, #28a745 0%, #20c997 100%); color: white;">
                     <div class="card-body text-center">
                         <i class="bi bi-plus-circle-fill fs-1 mb-2"></i>
                         <h5 class="card-title">Cargar Medición</h5>
                         <p class="mb-0">Registrar nueva medición</p>
+                    </div>
+                </a>
+            </div>
+            <div class="col-md-3">
+                <a href="{% url 'weekly_route' %}" class="card action-card h-100 text-decoration-none" style="background: linear-gradient(135deg, #17a2b8 0%, #20c997 100%); color: white;">
+                    <div class="card-body text-center">
+                        <i class="bi bi-map-fill fs-1 mb-2"></i>
+                        <h5 class="card-title">Ver Mapa</h5>
+                        <p class="mb-0">Visualizar ruta semanal</p>
                     </div>
                 </a>
             </div>
@@ -303,4 +319,33 @@ function verDetallesMedicion(medicionId) {
     new bootstrap.Modal(document.getElementById('modalDetallesMedicion')).show();
 }
 </script>
+
+<script src="{% static 'offline-upload.js' %}"></script>
+<script>
+    // Initialize offline upload system and update badge
+    document.addEventListener('DOMContentLoaded', async function() {
+        await initOfflineUpload();
+    });
+    
+    // Manual sync function
+    async function manualSync() {
+        const button = document.getElementById('syncButton');
+        const icon = button.querySelector('i');
+        
+        // Add spinning animation
+        icon.classList.add('fa-spin');
+        button.disabled = true;
+        
+        try {
+            await processUploadQueue();
+            await updatePendingBadge();
+        } catch (error) {
+            console.error('Manual sync failed:', error);
+        } finally {
+            icon.classList.remove('fa-spin');
+            button.disabled = false;
+        }
+    }
+</script>
+
 {% endblock %}

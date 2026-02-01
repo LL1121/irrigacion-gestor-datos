@@ -205,6 +205,101 @@ def service_worker(request):
 	return FileResponse(open(sw_file, "rb"), content_type="application/javascript")
 
 
+@login_required
+def get_weekly_route_data(request):
+	"""
+	API endpoint que retorna GeoJSON con las mediciones de la semana actual.
+	Parámetros opcionales: start_date, end_date (formato YYYY-MM-DD)
+	"""
+	from django.http import JsonResponse
+	
+	# Obtener rango de fechas (default: semana actual)
+	today = timezone.now().date()
+	week_start = today - timedelta(days=today.weekday())  # Lunes
+	week_end = week_start + timedelta(days=6)  # Domingo
+	
+	# Parámetros opcionales
+	start_date_param = request.GET.get('start_date')
+	end_date_param = request.GET.get('end_date')
+	
+	if start_date_param:
+		try:
+			week_start = datetime.strptime(start_date_param, '%Y-%m-%d').date()
+		except ValueError:
+			pass
+	
+	if end_date_param:
+		try:
+			week_end = datetime.strptime(end_date_param, '%Y-%m-%d').date()
+		except ValueError:
+			pass
+	
+	# Determinar si el usuario actual es staff o regular
+	if request.user.is_staff:
+		# Staff ve todas las mediciones de la semana
+		mediciones = Medicion.objects.filter(
+			timestamp__date__gte=week_start,
+			timestamp__date__lte=week_end,
+			captured_latitude__isnull=False,
+			captured_longitude__isnull=False
+		).exclude(
+			captured_latitude=0,
+			captured_longitude=0
+		).order_by('-timestamp')
+	else:
+		# Usuario regular solo ve sus propias mediciones
+		mediciones = Medicion.objects.filter(
+			user=request.user,
+			timestamp__date__gte=week_start,
+			timestamp__date__lte=week_end,
+			captured_latitude__isnull=False,
+			captured_longitude__isnull=False
+		).exclude(
+			captured_latitude=0,
+			captured_longitude=0
+		).order_by('-timestamp')
+	
+	# Construir GeoJSON FeatureCollection
+	features = []
+	for medicion in mediciones:
+		feature = {
+			"type": "Feature",
+			"geometry": {
+				"type": "Point",
+				"coordinates": [medicion.captured_longitude, medicion.captured_latitude]
+			},
+			"properties": {
+				"id": medicion.id,
+				"popup_title": medicion.timestamp.strftime('%d/%m %H:%M') + "hs",
+				"operator_name": medicion.user.username,
+				"value": str(medicion.value),
+				"ubicacion": medicion.ubicacion_manual or "Sin ubicación",
+				"detail_url": f"/gestion/empresas/{medicion.user.id}/mediciones/",
+				"is_valid": medicion.is_valid
+			}
+		}
+		features.append(feature)
+	
+	# GeoJSON FeatureCollection
+	geojson_data = {
+		"type": "FeatureCollection",
+		"features": features,
+		"properties": {
+			"week_start": week_start.isoformat(),
+			"week_end": week_end.isoformat(),
+			"count": len(features)
+		}
+	}
+	
+	return JsonResponse(geojson_data)
+
+
+@login_required
+def weekly_route(request):
+	"""Vista que renderiza el mapa semanal"""
+	return render(request, "web/weekly_route.html")
+
+
 # Staff Command Center
 class StaffCheckMixin(UserPassesTestMixin):
 	"""Mixin para verificar que el usuario sea staff"""

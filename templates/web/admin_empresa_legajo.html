@@ -33,23 +33,6 @@ body {
                         <i class="bi bi-pencil"></i> Editar Información
                     </a>
                     {% endif %}
-                    <div class="btn-group me-2" role="group">
-                        <button type="button" class="btn btn-outline-light dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="bi bi-gear"></i>
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li>
-                                <a class="dropdown-item" href="{% url 'exportar_csv' %}?user_id={{ empresa.id }}">
-                                    <i class="bi bi-download me-2"></i>Descargar Plantilla (CSV)
-                                </a>
-                            </li>
-                            <li>
-                                <a class="dropdown-item" href="#" onclick="descargarGrafico(event)">
-                                    <i class="bi bi-image me-2"></i>Descargar Gráfico (PNG)
-                                </a>
-                            </li>
-                        </ul>
-                    </div>
                     <a class="btn btn-outline-light" href="{% url 'admin_empresas' %}">
                         <i class="bi bi-arrow-left"></i> Volver a Empresas
                     </a>
@@ -63,8 +46,38 @@ body {
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card shadow-sm">
-                    <div class="card-header" style="background: linear-gradient(135deg, var(--primary-blue), #1e4a6f); color: white;">
+                    <div class="card-header d-flex justify-content-between align-items-center" style="background: linear-gradient(135deg, var(--primary-blue), #1e4a6f); color: white;">
                         <h5 class="mb-0"><i class="bi bi-info-circle me-2"></i>Información de la Empresa</h5>
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-light btn-sm dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="bi bi-download me-1"></i>Descargar
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><h6 class="dropdown-header">Históricos</h6></li>
+                                <li>
+                                    <a class="dropdown-item" href="{% url 'exportar_csv' %}?user_id={{ empresa.id }}&tipo=historico">
+                                        <i class="bi bi-file-earmark-spreadsheet me-2"></i>CSV - Históricos
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="#" onclick="descargarGrafico(event, 'historico')">
+                                        <i class="bi bi-file-earmark-image me-2"></i>PNG - Históricos
+                                    </a>
+                                </li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><h6 class="dropdown-header">Semanal</h6></li>
+                                <li>
+                                    <a class="dropdown-item" href="{% url 'exportar_csv' %}?user_id={{ empresa.id }}&tipo=semanal">
+                                        <i class="bi bi-file-earmark-spreadsheet me-2"></i>CSV - Semanal
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item" href="#" onclick="descargarGrafico(event, 'semanal')">
+                                        <i class="bi bi-file-earmark-image me-2"></i>PNG - Semanal
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
                     </div>
                     <div class="card-body">
                         <div class="row">
@@ -484,7 +497,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ===== Download Chart as PNG =====
-function descargarGrafico(event) {
+function descargarGrafico(event, tipo = 'historico') {
     event.preventDefault();
     
     const canvasElement = document.getElementById('consumptionChart');
@@ -523,7 +536,7 @@ function descargarGrafico(event) {
                 
                 const fecha = new Date().toLocaleString('es-ES').replace(/[/:]/g, '').replace(/\s/g, '_');
                 link.href = url;
-                link.download = `grafico_{{ empresa.username }}_${fecha}.png`;
+                link.download = `grafico_${tipo}_{{ empresa.username }}_${fecha}.png`;
                 document.body.appendChild(link);
                 link.click();
                 document.body.removeChild(link);
@@ -531,7 +544,7 @@ function descargarGrafico(event) {
                 
                 Swal.fire({
                     icon: 'success',
-                    title: 'Gráfico descargado',
+                    title: `Gráfico ${tipo} descargado`,
                     toast: true,
                     position: 'top-end',
                     timer: 2000,

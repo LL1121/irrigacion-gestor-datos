@@ -7,6 +7,8 @@ urlpatterns = [
     path("", views.dashboard, name="dashboard"),
     path("cargar/", views.cargar_medicion, name="cargar"),
     path("sw.js", views.service_worker, name="service_worker"),
+    path("api/weekly-route/", views.get_weekly_route_data, name="weekly_route_data"),
+    path("mapa/", views.weekly_route, name="weekly_route"),
     path("exportar/", views.exportar_csv, name="exportar_csv"),
     
     # Admin Panel (Custom UI)

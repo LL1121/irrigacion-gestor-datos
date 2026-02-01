@@ -92,6 +92,7 @@
     </div>
 </div>
 
+<script src="{% static 'offline-upload.js' %}"></script>
 <script>
     // Validar tamaño de archivo en tiempo real
     const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB en bytes
@@ -118,23 +119,33 @@
         });
     }
 
-    // Validar formulario antes de enviar
-    document.getElementById('measurementForm').addEventListener('submit', function(e) {
-        const valor = parseFloat(document.getElementById('valor_caudalimetro').value);
+    // Initialize offline upload system
+    document.addEventListener('DOMContentLoaded', async function() {
+        await initOfflineUpload();
         
-        // Validar valor no negativo
-        if (valor < 0) {
-            e.preventDefault();
-            alert('El valor del caudalímetro no puede ser negativo');
-            return false;
-        }
+        // Override form submission with offline support
+        const form = document.getElementById('measurementForm');
+        if (form) {
+            form.addEventListener('submit', async function(e) {
+                // Validar valor no negativo
+                const valor = parseFloat(document.getElementById('valor_caudalimetro').value);
+                if (valor < 0) {
+                    e.preventDefault();
+                    showNotification('Error', 'El valor del caudalímetro no puede ser negativo', 'error');
+                    return false;
+                }
 
-        // Validar tamaño de archivo
-        const file = fileInput.files[0];
-        if (file && file.size > MAX_FILE_SIZE) {
-            e.preventDefault();
-            alert('El archivo es demasiado grande. Máximo 10MB.');
-            return false;
+                // Validar tamaño de archivo
+                const file = fileInput.files[0];
+                if (file && file.size > MAX_FILE_SIZE) {
+                    e.preventDefault();
+                    showNotification('Error', 'El archivo es demasiado grande. Máximo 10MB.', 'error');
+                    return false;
+                }
+                
+                // Handle with offline support
+                await handleFormSubmit(e, form);
+            });
         }
     });
 </script>
