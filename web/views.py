@@ -3,6 +3,7 @@ from datetime import timedelta
 import json
 import csv
 from datetime import datetime
+import uuid
 
 from django.conf import settings
 from django.contrib import messages
@@ -10,14 +11,17 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.contrib.auth.models import User
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Max
 from django.http import FileResponse, HttpResponseNotFound
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.generic import DetailView, ListView
+from django.core.files.base import ContentFile
+from django.core.files.storage import FileSystemStorage
 
 from .models import Medicion
+from .utils import extract_exif_metadata, compress_and_resize_image
 
 
 def login_view(request):
@@ -66,6 +70,9 @@ def dashboard(request):
 def cargar_medicion(request):
 	"""Vista para cargar nueva medición con manejo robusto de errores y rate limiting"""
 	if request.method == 'POST':
+		temp_storage = None
+		temp_name = None
+		temp_full_path = None
 		try:
 			# ===== RATE LIMITING: Check if user submitted a measurement less than 30 seconds ago =====
 			last_medicion = Medicion.objects.filter(user=request.user).order_by('-timestamp').first()
@@ -87,17 +94,83 @@ def cargar_medicion(request):
 				messages.error(request, 'El valor del caudalímetro es obligatorio')
 				return redirect('cargar')
 			
-			# Crear medición
-			medicion = Medicion(
-				user=request.user,
-				value=valor_caudalimetro,
-				ubicacion_manual=ubicacion_manual,
-				photo=foto_evidencia,
-				observation=observaciones,
-			)
-			
-			# full_clean() se llamará automáticamente en save()
-			medicion.save()
+			# Flujo robusto: guardar archivo temporal y confirmar tras commit
+			temp_storage = FileSystemStorage(location=str(Path(settings.MEDIA_ROOT) / "tmp_uploads"))
+
+			if foto_evidencia:
+				temp_name = temp_storage.save(
+					f"tmp_{request.user.id}_{uuid.uuid4().hex}_{foto_evidencia.name}",
+					foto_evidencia
+				)
+				temp_full_path = temp_storage.path(temp_name)
+
+			with transaction.atomic():
+				# Crear medición sin foto (se adjunta tras commit)
+				medicion = Medicion(
+					user=request.user,
+					value=valor_caudalimetro,
+					ubicacion_manual=ubicacion_manual,
+					photo=None,
+					observation=observaciones,
+				)
+				medicion.save()
+
+				if temp_full_path:
+					def finalize_photo_upload():
+						try:
+							# Extraer EXIF antes de comprimir
+							with open(temp_full_path, "rb") as f:
+								metadata = extract_exif_metadata(f)
+
+							# Comprimir y optimizar
+							with open(temp_full_path, "rb") as f:
+								compressed_buffer = compress_and_resize_image(
+									f,
+									max_size=1280,
+									quality=70
+								)
+
+							# Si falla compresión, usar original
+							if not compressed_buffer:
+								with open(temp_full_path, "rb") as f:
+									compressed_buffer = ContentFile(f.read())
+							else:
+								compressed_buffer = ContentFile(compressed_buffer.getvalue())
+
+							# Guardar foto optimizada sin reprocesar en save()
+							medicion._skip_image_processing = True
+							medicion.photo.save(
+								foto_evidencia.name,
+								compressed_buffer,
+								save=False
+							)
+
+							# Guardar coordenadas y timestamp EXIF si existen
+							if metadata.get('latitude') is not None:
+								medicion.captured_latitude = metadata['latitude']
+							if metadata.get('longitude') is not None:
+								medicion.captured_longitude = metadata['longitude']
+							if metadata.get('timestamp') is not None:
+								medicion.captured_at = metadata['timestamp']
+
+							medicion.save(update_fields=[
+								"photo",
+								"captured_latitude",
+								"captured_longitude",
+								"captured_at"
+							])
+						except Exception:
+							# Si falla el guardado del archivo, eliminar el registro
+							medicion.delete()
+						finally:
+							# Limpiar archivo temporal
+							try:
+								if temp_name and temp_storage.exists(temp_name):
+									temp_storage.delete(temp_name)
+							except Exception:
+								pass
+
+					transaction.on_commit(finalize_photo_upload)
 			
 			messages.success(request, 'Medición guardada exitosamente')
 			return redirect('dashboard')
@@ -106,6 +179,12 @@ def cargar_medicion(request):
 			messages.error(request, f'Error en los datos: {str(e)}')
 			return redirect('cargar')
 		except Exception as e:
+			# Limpiar archivo temporal si algo falla antes del commit
+			try:
+				if temp_storage and temp_name and temp_storage.exists(temp_name):
+					temp_storage.delete(temp_name)
+			except Exception:
+				pass
 			from django.core.exceptions import ValidationError
 			if isinstance(e, ValidationError):
 				# Mostrar cada error de validación

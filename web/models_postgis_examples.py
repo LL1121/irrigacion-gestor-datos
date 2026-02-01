@@ -21,6 +21,7 @@ EJEMPLO DE MODELO:
 
 from django.contrib.gis.db import models as gis_models
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
 
 class MedicionPostGIS(gis_models.Model):
     """Modelo de medición usando PostGIS PointField"""
@@ -37,7 +38,15 @@ class MedicionPostGIS(gis_models.Model):
     )
     
     photo = gis_models.ImageField(upload_to='evidencias/')
+    # Dual timestamps
+    captured_at = gis_models.DateTimeField(null=True, blank=True)
+    uploaded_at = gis_models.DateTimeField(auto_now_add=True)
     timestamp = gis_models.DateTimeField(auto_now_add=True)
+
+    def clean(self):
+        """Validación de Null Island (0,0)"""
+        if self.location and self.location.x == 0 and self.location.y == 0:
+            raise ValidationError("La coordenada no puede ser (0,0).")
     
     @property
     def maps_url(self):
@@ -70,7 +79,7 @@ REQUISITOS:
 EJEMPLO DE MODELO:
 """
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Numeric
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Numeric, func
 from sqlalchemy.ext.declarative import declarative_base
 from geoalchemy2 import Geometry
 from geoalchemy2.shape import to_shape
@@ -93,6 +102,9 @@ class MedicionSQLAlchemy(Base):
     )
     
     photo_path = Column(String(500))
+    # Dual timestamps
+    captured_at = Column(DateTime)
+    uploaded_at = Column(DateTime, server_default=func.now())
     timestamp = Column(DateTime)
     
     @property
@@ -116,6 +128,14 @@ class MedicionSQLAlchemy(Base):
         point = ShapelyPoint(longitude, latitude)
         # Convertir a WKB para GeoAlchemy2
         return from_shape(point, srid=4326)
+
+    def validate_location(self):
+        """Validación de Null Island (0,0)"""
+        if not self.location:
+            return
+        point = to_shape(self.location)
+        if point.x == 0 and point.y == 0:
+            raise ValueError("La coordenada no puede ser (0,0).")
 
 
 # ============================================================================
@@ -158,4 +178,23 @@ PASOS PARA MIGRAR TU MODELO ACTUAL:
                medicion.save()
 
 5. Después de verificar, eliminar campos float antiguos en otra migración
+"""
+
+# ============================================================================
+# ATOMICIDAD: Guardar archivo + DB en una sola transacción
+# ============================================================================
+"""
+EJEMPLO DJANGO (transaction.atomic):
+
+from django.db import transaction
+
+def guardar_medicion_atomic(user, value, photo_file, lat=None, lon=None):
+    with transaction.atomic():
+        medicion = MedicionPostGIS(user=user, value=value)
+        if lat is not None and lon is not None:
+            medicion.location = MedicionPostGIS.create_point(lat, lon)
+        medicion.photo = photo_file
+        medicion.save()
+        # Si ocurre un error aquí, se revierte todo (DB + archivo)
+        return medicion
 """

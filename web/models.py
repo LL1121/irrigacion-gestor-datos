@@ -53,6 +53,11 @@ class Medicion(models.Model):
 	# Campos de auditoría / validación offline
 	captured_latitude = models.FloatField(null=True, blank=True, help_text="Latitud capturada en el dispositivo")
 	captured_longitude = models.FloatField(null=True, blank=True, help_text="Longitud capturada en el dispositivo")
+	captured_at = models.DateTimeField(null=True, blank=True, help_text="Fecha/hora capturada desde EXIF del dispositivo")
+	uploaded_at = models.DateTimeField(
+		default=timezone.now,
+		help_text="Fecha/hora en que el servidor recibió la medición"
+	)
 	is_valid = models.BooleanField(default=False, help_text="¿La medición ha sido validada?")
 	target_latitude = models.FloatField(null=True, blank=True, help_text="Latitud objetivo / esperada")
 	target_longitude = models.FloatField(null=True, blank=True, help_text="Longitud objetivo / esperada")
@@ -131,6 +136,11 @@ class Medicion(models.Model):
 					f"Advertencia: Este valor ({self.value}) es menor que la última medición validada "
 					f"({previous_measurement.value}). Verifica que el caudalímetro no haya retrocedido."
 				)
+
+		# 5. Validación de Null Island (0,0)
+		if self.captured_latitude == 0 and self.captured_longitude == 0:
+			errors['captured_latitude'] = "La coordenada no puede ser (0,0)."
+			errors['captured_longitude'] = "La coordenada no puede ser (0,0)."
 		
 		if errors:
 			raise ValidationError(errors)
@@ -138,6 +148,12 @@ class Medicion(models.Model):
 	def save(self, *args, **kwargs):
 		"""Validar, extraer EXIF y comprimir imagen antes de guardar"""
 		self.full_clean()
+
+		# Permitir omitir el procesamiento si ya se optimizó el archivo
+		if getattr(self, "_skip_image_processing", False):
+			self._skip_image_processing = False
+			super().save(*args, **kwargs)
+			return
 
 		# Procesar imagen si existe
 		if self.photo:
@@ -150,6 +166,9 @@ class Medicion(models.Model):
 					self.captured_latitude = metadata['latitude']
 				if metadata['longitude'] is not None:
 					self.captured_longitude = metadata['longitude']
+				# Guardar timestamp capturado desde EXIF si existe
+				if metadata['timestamp'] is not None:
+					self.captured_at = metadata['timestamp']
 				
 				# 2. COMPRIMIR Y OPTIMIZAR imagen
 				# Resetear puntero del archivo antes de comprimir
