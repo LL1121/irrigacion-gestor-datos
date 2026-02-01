@@ -10,15 +10,19 @@ from django.core.files.base import File
 from django.core.files.uploadedfile import InMemoryUploadedFile
 from PIL import Image
 
-from .utils import extract_exif_metadata, compress_and_resize_image
+from .utils import extract_exif_metadata, compress_and_resize_image, generate_unique_filename
 
 
 def medicion_photo_path(instance, filename):
-	"""Generar ruta dinámica: evidencias/YEAR/WEEK/user_id/filename"""
+	"""Generar ruta dinámica con nombre único: evidencias/YEAR/WEEK/user_id/unique_filename"""
 	year = timezone.now().year
 	week = timezone.now().isocalendar()[1]
 	user_id = instance.user.id
-	return f"evidencias/{year}/{week}/{user_id}/{filename}"
+	
+	# Generar nombre único para evitar colisiones
+	unique_filename = generate_unique_filename(user_id, filename)
+	
+	return f"evidencias/{year}/{week}/{user_id}/{unique_filename}"
 
 
 class EmpresaPerfil(models.Model):
@@ -60,6 +64,25 @@ class Medicion(models.Model):
 
 	def __str__(self):
 		return f"{self.value} m³/h - {self.ubicacion_manual or 'Sin ubicación'} ({self.timestamp.strftime('%d/%m/%Y %H:%M')})"
+
+	@property
+	def maps_url(self):
+		"""
+		Genera URL de Google Maps con las coordenadas capturadas.
+		
+		Returns:
+			str: URL de Google Maps o None si no hay coordenadas
+		"""
+		if self.captured_latitude is None or self.captured_longitude is None:
+			return None
+		
+		# Formato: https://www.google.com/maps/search/?api=1&query=lat,lon
+		return f"https://www.google.com/maps/search/?api=1&query={self.captured_latitude},{self.captured_longitude}"
+	
+	@property
+	def has_location(self):
+		"""Verifica si tiene coordenadas GPS capturadas"""
+		return self.captured_latitude is not None and self.captured_longitude is not None
 
 	def clean(self):
 		"""Validaciones de negocio para la medición"""

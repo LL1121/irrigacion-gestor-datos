@@ -5,6 +5,9 @@ from PIL import Image, ImageOps
 from PIL.ExifTags import TAGS, GPSTAGS
 from datetime import datetime
 from io import BytesIO
+import uuid
+import os
+from django.utils import timezone
 
 
 def extract_exif_metadata(image_file):
@@ -176,3 +179,51 @@ def compress_and_resize_image(image_file, max_size=1280, quality=70):
     except Exception as e:
         # Si falla, devolver None
         return None
+
+
+def generate_unique_filename(user_id, original_filename):
+    """
+    Genera un nombre de archivo único combinando user_id, timestamp y UUID corto.
+    
+    Args:
+        user_id: ID del usuario (int o str)
+        original_filename: Nombre original del archivo con extensión
+        
+    Returns:
+        str: Nombre único seguro (ej: "user_123_20260122_143052_a7b3c9.jpg")
+    """
+    # Extraer extensión del archivo original
+    _, extension = os.path.splitext(original_filename)
+    extension = extension.lower() or '.jpg'  # Default a .jpg si no hay extensión
+    
+    # Timestamp actual (formato: YYYYMMDD_HHMMSS)
+    timestamp = timezone.now().strftime('%Y%m%d_%H%M%S')
+    
+    # UUID corto (primeros 6 caracteres para evitar colisiones)
+    short_uuid = str(uuid.uuid4())[:6]
+    
+    # Combinar partes: user_id + timestamp + uuid + extensión
+    unique_name = f"user_{user_id}_{timestamp}_{short_uuid}{extension}"
+    
+    return unique_name
+
+
+def latlon_to_point_wkt(latitude, longitude):
+    """
+    Convierte latitud/longitud a formato WKT (Well-Known Text) para PostGIS.
+    
+    Args:
+        latitude: float (grados decimales)
+        longitude: float (grados decimales)
+        
+    Returns:
+        str: String WKT en formato "POINT(lon lat)" o None si faltan datos
+        
+    Nota: PostGIS usa el orden (longitude, latitude) en WKT, no (lat, lon)
+    """
+    if latitude is None or longitude is None:
+        return None
+    
+    # WKT format: POINT(longitude latitude)
+    # IMPORTANTE: PostGIS espera (lon, lat), no (lat, lon)
+    return f"POINT({longitude} {latitude})"
