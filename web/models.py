@@ -66,6 +66,12 @@ class Medicion(models.Model):
 		verbose_name = "Medición"
 		verbose_name_plural = "Mediciones"
 		ordering = ["-timestamp"]
+		indexes = [
+			models.Index(fields=['-timestamp']),
+			models.Index(fields=['user', '-timestamp']),
+			models.Index(fields=['captured_latitude', 'captured_longitude']),
+			models.Index(fields=['is_valid']),
+		]
 
 	def __str__(self):
 		return f"{self.value} m³/h - {self.ubicacion_manual or 'Sin ubicación'} ({self.timestamp.strftime('%d/%m/%Y %H:%M')})"

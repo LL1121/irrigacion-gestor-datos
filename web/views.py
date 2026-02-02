@@ -77,6 +77,9 @@ def login_view(request):
 		user = authenticate(request, username=username, password=password)
 		if user is not None:
 			login(request, user)
+			# Limpiar caché del usuario al hacer login
+			from django.core.cache import cache
+			cache.delete(f'dashboard_mediciones_{user.id}')
 			return redirect('dashboard')
 		else:
 			messages.error(request, 'Usuario o contraseña incorrectos')
@@ -86,6 +89,9 @@ def login_view(request):
 
 def logout_view(request):
 	"""Vista para cerrar sesión"""
+	# Limpiar caché del usuario al cerrar sesión
+	from django.core.cache import cache
+	cache.delete(f'dashboard_mediciones_{request.user.id}')
 	logout(request)
 	messages.success(request, 'Sesión cerrada correctamente')
 	return redirect('login')
@@ -96,7 +102,7 @@ def dashboard(request):
 	"""Dashboard del operario con sus últimas mediciones"""
 	if request.user.is_staff:
 		# Si es staff, mostrar últimas mediciones de todas las empresas
-		mediciones = Medicion.objects.all().order_by('-timestamp')[:10]
+		mediciones = Medicion.objects.select_related('user').all().order_by('-timestamp')[:10]
 	else:
 		# Si es operario, mostrar solo sus mediciones
 		mediciones = Medicion.objects.filter(user=request.user).order_by('-timestamp')[:5]
@@ -299,6 +305,9 @@ def get_weekly_route_data(request):
 		).exclude(
 			captured_latitude=0,
 			captured_longitude=0
+		).select_related('user').only(
+			'id', 'captured_latitude', 'captured_longitude',
+			'ubicacion_manual', 'value', 'timestamp', 'user__username'
 		).order_by('-timestamp')
 	else:
 		# Usuario regular solo ve sus propias mediciones
@@ -311,6 +320,9 @@ def get_weekly_route_data(request):
 		).exclude(
 			captured_latitude=0,
 			captured_longitude=0
+		).only(
+			'id', 'captured_latitude', 'captured_longitude',
+			'ubicacion_manual', 'value', 'timestamp'
 		).order_by('-timestamp')
 	
 	# Construir GeoJSON FeatureCollection
@@ -467,7 +479,10 @@ def admin_empresas_view(request):
 		return redirect('dashboard')
 	
 	from django.db.models import Count
-	empresas = User.objects.filter(is_staff=False, is_superuser=False).annotate(
+	empresas = User.objects.filter(
+		is_staff=False, 
+		is_superuser=False
+	).select_related('empresa_perfil').prefetch_related('mediciones').annotate(
 		total_mediciones=Count('mediciones'),
 		latest_measurement=Max('mediciones__timestamp')
 	).order_by('-latest_measurement')
@@ -482,11 +497,13 @@ def admin_empresa_legajo_view(request, user_id):
 		return redirect('dashboard')
 	
 	from django.db.models import Count, Avg, Min, Max
-	empresa = get_object_or_404(User, id=user_id, is_staff=False)
-	mediciones = Medicion.objects.filter(user=empresa).order_by('-timestamp')
+	empresa = get_object_or_404(User.objects.select_related('empresa_perfil'), id=user_id, is_staff=False)
 	
-	# Estadísticas avanzadas
-	stats = mediciones.aggregate(
+	# Usar queryset base para evitar duplicación
+	mediciones_qs = Medicion.objects.filter(user=empresa)
+	
+	# Estadísticas avanzadas (una sola query)
+	stats = mediciones_qs.aggregate(
 		total=Count('id'),
 		validadas=Count('id', filter=models.Q(is_valid=True)),
 		pendientes=Count('id', filter=models.Q(is_valid=False)),
@@ -505,10 +522,13 @@ def admin_empresa_legajo_view(request, user_id):
 		stats['porcentaje_validadas'] = 0
 		stats['umbral_pendientes'] = 0
 	
-	# Preparar datos para Chart.js - Últimas 20 mediciones de la empresa
-	chart_mediciones = Medicion.objects.filter(user=empresa).order_by('timestamp')[:20]
+	# Preparar datos para Chart.js - Últimas 20 mediciones (solo campos necesarios)
+	chart_mediciones = mediciones_qs.only('timestamp', 'value').order_by('timestamp')[:20]
 	chart_labels = [med.timestamp.strftime('%d/%m %H:%M') for med in chart_mediciones]
 	chart_data = [float(med.value) for med in chart_mediciones]
+	
+	# Mediciones para la tabla (lazy load)
+	mediciones = mediciones_qs.order_by('-timestamp')
 	
 	context = {
 		'empresa': empresa,
@@ -527,8 +547,8 @@ def admin_mediciones_empresa_view(request, user_id):
 	if not request.user.is_staff:
 		return redirect('dashboard')
 	
-	empresa = get_object_or_404(User, id=user_id, is_staff=False)
-	mediciones = Medicion.objects.filter(user=empresa).order_by('-timestamp')
+	empresa = get_object_or_404(User.objects.select_related('empresa_perfil'), id=user_id, is_staff=False)
+	mediciones = Medicion.objects.filter(user=empresa).select_related('user').order_by('-timestamp')
 	
 	return render(request, 'web/admin_mediciones_empresa.html', {
 		'mediciones': mediciones,
