@@ -2,6 +2,7 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
+    path("health/", views.health_check, name="health_check"),
     path("login/", views.login_view, name="login"),
     path("logout/", views.logout_view, name="logout"),
     path("", views.dashboard, name="dashboard"),
@@ -9,6 +10,7 @@ urlpatterns = [
     path("sw.js", views.service_worker, name="service_worker"),
     path("api/weekly-route/", views.get_weekly_route_data, name="weekly_route_data"),
     path("mapa/", views.weekly_route, name="weekly_route"),
+    path("api/docs/", views.api_docs, name="api_docs"),
     path("exportar/", views.exportar_csv, name="exportar_csv"),
     
     # Admin Panel (Custom UI)

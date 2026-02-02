@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div>
+    <div class="dashboard-header">
+        <div class="container-fluid">
+            <div class="d-flex align-items-center" style="gap: 1rem;">
+                <div style="flex: 1;">
+                    <div class="greeting"><i class="bi bi-braces"></i> API Docs</div>
+                    <div class="greeting-subtitle">Documentación básica de endpoints</div>
+                </div>
+                <div style="flex: 0 0 auto;" class="text-center">
+                    <a href="{% url 'dashboard' %}" class="d-inline-block" style="text-decoration: none;">
+                        <img src="{% static 'logo-blanco.png' %}" alt="Irrigación" style="height: 60px;">
+                    </a>
+                </div>
+                <div style="flex: 1;" class="text-end">
+                    <a class="btn btn-outline-light" href="{% url 'dashboard' %}">
+                        <i class="bi bi-arrow-left"></i> Volver
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container-fluid p-4">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="mb-3"><i class="bi bi-map"></i> Endpoints Principales</h5>
+                <ul class="list-group">
+                    <li class="list-group-item">
+                        <strong>GET</strong> /api/weekly-route/
+                        <div class="text-muted">GeoJSON de mediciones semanales (requiere login)</div>
+                    </li>
+                    <li class="list-group-item">
+                        <strong>POST</strong> /cargar/
+                        <div class="text-muted">Carga de medición con foto y metadata</div>
+                    </li>
+                    <li class="list-group-item">
+                        <strong>GET</strong> /exportar/?user_id={id}
+                        <div class="text-muted">Exporta CSV de mediciones (staff/superuser)</div>
+                    </li>
+                </ul>
+
+                <hr class="my-4">
+
+                <h5 class="mb-3"><i class="bi bi-shield-lock"></i> Seguridad</h5>
+                <ul class="list-group">
+                    <li class="list-group-item">CSRF habilitado</li>
+                    <li class="list-group-item">Rate limiting en login y carga</li>
+                    <li class="list-group-item">Validación por roles (staff/operario)</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

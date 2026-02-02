@@ -1,5 +1,6 @@
 from pathlib import Path
 from datetime import timedelta
+import logging
 import json
 import csv
 from datetime import datetime
@@ -13,17 +14,57 @@ from django.contrib.auth.mixins import UserPassesTestMixin
 from django.contrib.auth.models import User
 from django.db import models, transaction
 from django.db.models import Max
-from django.http import FileResponse, HttpResponseNotFound
+from django.http import FileResponse, HttpResponseNotFound, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.generic import DetailView, ListView
+from django.views.decorators.cache import cache_page
 from django.core.files.base import ContentFile
 from django.core.files.storage import FileSystemStorage
+from django.db import connection
+from django_ratelimit.decorators import ratelimit
 
 from .models import Medicion
 from .utils import extract_exif_metadata, compress_and_resize_image
 
+logger = logging.getLogger(__name__)
 
+
+def health_check(request):
+	"""Health check endpoint para monitoring y load balancers"""
+	try:
+		# Verificar conexión a la base de datos
+		with connection.cursor() as cursor:
+			cursor.execute("SELECT 1")
+		
+		# Verificar que Redis esté disponible (si está configurado)
+		cache_status = 'not_configured'
+		try:
+			from django.core.cache import cache
+			cache.set('health_check', 'ok', 10)
+			if cache.get('health_check') == 'ok':
+				cache_status = 'connected'
+			else:
+				cache_status = 'error'
+		except Exception:
+			cache_status = 'unavailable'
+		
+		return JsonResponse({
+			'status': 'healthy',
+			'database': 'connected',
+			'cache': cache_status,
+			'timestamp': timezone.now().isoformat()
+		})
+	except Exception as e:
+		logger.exception("Health check failed")
+		return JsonResponse({
+			'status': 'unhealthy',
+			'error': str(e),
+			'timestamp': timezone.now().isoformat()
+		}, status=503)
+
+
+@ratelimit(key='ip', rate='5/m', block=True)
 def login_view(request):
 	"""Vista de login con autenticación Django"""
 	if request.user.is_authenticated:
@@ -67,6 +108,8 @@ def dashboard(request):
 
 
 @login_required
+@login_required
+@ratelimit(key='user_or_ip', rate='10/m', block=True)
 def cargar_medicion(request):
 	"""Vista para cargar nueva medición con manejo robusto de errores y rate limiting"""
 	if request.method == 'POST':
@@ -82,7 +125,7 @@ def cargar_medicion(request):
 				if time_since_last < timedelta(seconds=30):
 					messages.warning(request, 'Espere unos segundos antes de enviar otra medición')
 					return redirect('dashboard')
-			
+
 			# Obtener datos del formulario
 			ubicacion_manual = request.POST.get('ubicacion_manual')
 			valor_caudalimetro = request.POST.get('valor_caudalimetro')
@@ -160,6 +203,7 @@ def cargar_medicion(request):
 								"captured_at"
 							])
 						except Exception:
+							logger.exception("Error finalizando carga de foto", extra={"user_id": request.user.id})
 							# Si falla el guardado del archivo, eliminar el registro
 							medicion.delete()
 						finally:
@@ -176,9 +220,11 @@ def cargar_medicion(request):
 			return redirect('dashboard')
 		
 		except ValueError as e:
+			logger.warning("Error de validación en cargar_medicion", extra={"error": str(e), "user_id": request.user.id})
 			messages.error(request, f'Error en los datos: {str(e)}')
 			return redirect('cargar')
 		except Exception as e:
+			logger.exception("Error al guardar medición", extra={"user_id": request.user.id})
 			# Limpiar archivo temporal si algo falla antes del commit
 			try:
 				if temp_storage and temp_name and temp_storage.exists(temp_name):
@@ -295,9 +341,17 @@ def get_weekly_route_data(request):
 
 
 @login_required
+@login_required
+@cache_page(60)
 def weekly_route(request):
 	"""Vista que renderiza el mapa semanal"""
 	return render(request, "web/weekly_route.html")
+
+
+@login_required
+def api_docs(request):
+	"""Vista simple de documentación de endpoints"""
+	return render(request, "web/api_docs.html")
 
 
 # Staff Command Center
@@ -556,56 +610,63 @@ def admin_editar_perfil_empresa_view(request, user_id):
 @login_required
 def exportar_csv(request):
 	"""Exportar historial de mediciones como CSV"""
-	# Determinar qué mediciones exportar según permisos
-	if request.user.is_staff:
-		# Si es staff, verificar si se pasó user_id para exportar mediciones específicas
-		user_id = request.GET.get('user_id')
-		if user_id:
-			# Exportar mediciones de un usuario específico
-			try:
-				usuario = User.objects.get(id=user_id)
-				mediciones = Medicion.objects.filter(user=usuario).order_by('-timestamp')
-				filename_suffix = f"_{usuario.username}"
-			except User.DoesNotExist:
-				messages.error(request, 'Usuario no encontrado')
-				return redirect('dashboard')
+	try:
+		# Determinar qué mediciones exportar según permisos
+		if request.user.is_staff:
+			# Si es staff, verificar si se pasó user_id para exportar mediciones específicas
+			user_id = request.GET.get('user_id')
+			if user_id:
+				# Exportar mediciones de un usuario específico
+				try:
+					usuario = User.objects.get(id=user_id)
+					mediciones = Medicion.objects.filter(user=usuario).order_by('-timestamp')
+					filename_suffix = f"_{usuario.username}"
+				except User.DoesNotExist:
+					messages.error(request, 'Usuario no encontrado')
+					return redirect('dashboard')
+			else:
+				# Exportar todas las mediciones del sistema
+				mediciones = Medicion.objects.all().order_by('-timestamp')
+				filename_suffix = "_sistema_completo"
 		else:
-			# Exportar todas las mediciones del sistema
-			mediciones = Medicion.objects.all().order_by('-timestamp')
-			filename_suffix = "_sistema_completo"
-	else:
-		# Usuario regular: exportar solo sus mediciones
-		mediciones = Medicion.objects.filter(user=request.user).order_by('-timestamp')
-		filename_suffix = f"_{request.user.username}"
-	
-	# Crear respuesta CSV con encoding utf-8-sig (para soporte de caracteres españoles en Excel)
-	response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
-	
-	# Generar nombre de archivo con fecha actual
-	fecha_actual = datetime.now().strftime('%d%m%Y_%H%M%S')
-	filename = f'mediciones{filename_suffix}_{fecha_actual}.csv'
-	response['Content-Disposition'] = f'attachment; filename="{filename}"'
-	
-	# Escribir BOM para UTF-8 (para Excel)
-	response.write('\ufeff')
-	
-	# Crear escritor CSV
-	writer = csv.writer(response)
-	
-	# Escribir encabezados
-	writer.writerow(['Timestamp', 'Usuario (Empresa)', 'Ubicación Manual', 'Valor (m³/h)', 'Foto URL', 'Estado', 'Ubicación GPS', 'Observaciones'])
-	
-	# Escribir datos de mediciones
-	for medicion in mediciones:
-		writer.writerow([
-			medicion.timestamp.strftime('%d/%m/%Y %H:%M:%S'),
-			medicion.user.username,
-			medicion.ubicacion_manual or '-',
-			medicion.value,
-			medicion.photo.url if medicion.photo else '-',
-			'Validado' if medicion.is_valid else 'Pendiente',
-			f"{medicion.captured_latitude or '-'}, {medicion.captured_longitude or '-'}",
-			medicion.observation or '-'
-		])
+			# Usuario regular: exportar solo sus mediciones
+			mediciones = Medicion.objects.filter(user=request.user).order_by('-timestamp')
+			filename_suffix = f"_{request.user.username}"
+		
+		# Crear respuesta CSV con encoding utf-8-sig (para soporte de caracteres españoles en Excel)
+		response = HttpResponse(content_type='text/csv; charset=utf-8-sig')
+		
+		# Generar nombre de archivo con fecha actual
+		fecha_actual = datetime.now().strftime('%d%m%Y_%H%M%S')
+		filename = f'mediciones{filename_suffix}_{fecha_actual}.csv'
+		response['Content-Disposition'] = f'attachment; filename="{filename}"'
+		
+		# Escribir BOM para UTF-8 (para Excel)
+		response.write('\ufeff')
+		
+		# Crear escritor CSV
+		writer = csv.writer(response)
+		
+		# Escribir encabezados
+		writer.writerow(['Timestamp', 'Usuario (Empresa)', 'Ubicación Manual', 'Valor (m³/h)', 'Foto URL', 'Estado', 'Ubicación GPS', 'Observaciones'])
+		
+		# Escribir datos de mediciones
+		for medicion in mediciones:
+			writer.writerow([
+				medicion.timestamp.strftime('%d/%m/%Y %H:%M:%S'),
+				medicion.user.username,
+				medicion.ubicacion_manual or '-',
+				medicion.value,
+				medicion.photo.url if medicion.photo else '-',
+				'Validado' if medicion.is_valid else 'Pendiente',
+				f"{medicion.captured_latitude or '-'}, {medicion.captured_longitude or '-'}",
+				medicion.observation or '-'
+			])
+
+		return response
+	except Exception:
+		logger.exception("Error exportando CSV", extra={"user_id": request.user.id})
+		messages.error(request, 'Error al exportar CSV. Inténtalo nuevamente.')
+		return redirect('dashboard')
 	
 	return response

@@ -1,0 +1,42 @@
+[Unit]
+Description=Malargüe DB Django Application (Gunicorn)
+After=network.target postgresql.service redis.service
+Wants=postgresql.service redis.service
+
+[Service]
+Type=notify
+User=malargue
+Group=www-data
+WorkingDirectory=/home/malargue/IrrigacionPetroleras
+Environment="PATH=/home/malargue/IrrigacionPetroleras/venv/bin"
+Environment="DJANGO_SETTINGS_MODULE=config.settings"
+
+# Gunicorn command
+ExecStart=/home/malargue/IrrigacionPetroleras/venv/bin/gunicorn \
+    --workers 4 \
+    --worker-class sync \
+    --bind 127.0.0.1:8000 \
+    --timeout 60 \
+    --max-requests 1000 \
+    --max-requests-jitter 100 \
+    --access-logfile /var/log/malargue/gunicorn_access.log \
+    --error-logfile /var/log/malargue/gunicorn_error.log \
+    --log-level info \
+    --capture-output \
+    config.wsgi:application
+
+# Restart policy
+Restart=always
+RestartSec=10
+KillMode=mixed
+KillSignal=SIGTERM
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Resource limits
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
