@@ -3,6 +3,7 @@ from datetime import timedelta
 import json
 import csv
 from datetime import datetime
+import uuid
 
 from django.conf import settings
 from django.contrib import messages
@@ -10,14 +11,17 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import UserPassesTestMixin
 from django.contrib.auth.models import User
-from django.db import models
+from django.db import models, transaction
 from django.db.models import Max
 from django.http import FileResponse, HttpResponseNotFound
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.views.generic import DetailView, ListView
+from django.core.files.base import ContentFile
+from django.core.files.storage import FileSystemStorage
 
 from .models import Medicion
+from .utils import extract_exif_metadata, compress_and_resize_image
 
 
 def login_view(request):
@@ -66,6 +70,9 @@ def dashboard(request):
 def cargar_medicion(request):
 	"""Vista para cargar nueva medición con manejo robusto de errores y rate limiting"""
 	if request.method == 'POST':
+		temp_storage = None
+		temp_name = None
+		temp_full_path = None
 		try:
 			# ===== RATE LIMITING: Check if user submitted a measurement less than 30 seconds ago =====
 			last_medicion = Medicion.objects.filter(user=request.user).order_by('-timestamp').first()
@@ -87,17 +94,83 @@ def cargar_medicion(request):
 				messages.error(request, 'El valor del caudalímetro es obligatorio')
 				return redirect('cargar')
 			
-			# Crear medición
-			medicion = Medicion(
-				user=request.user,
-				value=valor_caudalimetro,
-				ubicacion_manual=ubicacion_manual,
-				photo=foto_evidencia,
-				observation=observaciones,
-			)
-			
-			# full_clean() se llamará automáticamente en save()
-			medicion.save()
+			# Flujo robusto: guardar archivo temporal y confirmar tras commit
+			temp_storage = FileSystemStorage(location=str(Path(settings.MEDIA_ROOT) / "tmp_uploads"))
+
+			if foto_evidencia:
+				temp_name = temp_storage.save(
+					f"tmp_{request.user.id}_{uuid.uuid4().hex}_{foto_evidencia.name}",
+					foto_evidencia
+				)
+				temp_full_path = temp_storage.path(temp_name)
+
+			with transaction.atomic():
+				# Crear medición sin foto (se adjunta tras commit)
+				medicion = Medicion(
+					user=request.user,
+					value=valor_caudalimetro,
+					ubicacion_manual=ubicacion_manual,
+					photo=None,
+					observation=observaciones,
+				)
+				medicion.save()
+
+				if temp_full_path:
+					def finalize_photo_upload():
+						try:
+							# Extraer EXIF antes de comprimir
+							with open(temp_full_path, "rb") as f:
+								metadata = extract_exif_metadata(f)
+
+							# Comprimir y optimizar
+							with open(temp_full_path, "rb") as f:
+								compressed_buffer = compress_and_resize_image(
+									f,
+									max_size=1280,
+									quality=70
+								)
+
+							# Si falla compresión, usar original
+							if not compressed_buffer:
+								with open(temp_full_path, "rb") as f:
+									compressed_buffer = ContentFile(f.read())
+							else:
+								compressed_buffer = ContentFile(compressed_buffer.getvalue())
+
+							# Guardar foto optimizada sin reprocesar en save()
+							medicion._skip_image_processing = True
+							medicion.photo.save(
+								foto_evidencia.name,
+								compressed_buffer,
+								save=False
+							)
+
+							# Guardar coordenadas y timestamp EXIF si existen
+							if metadata.get('latitude') is not None:
+								medicion.captured_latitude = metadata['latitude']
+							if metadata.get('longitude') is not None:
+								medicion.captured_longitude = metadata['longitude']
+							if metadata.get('timestamp') is not None:
+								medicion.captured_at = metadata['timestamp']
+
+							medicion.save(update_fields=[
+								"photo",
+								"captured_latitude",
+								"captured_longitude",
+								"captured_at"
+							])
+						except Exception:
+							# Si falla el guardado del archivo, eliminar el registro
+							medicion.delete()
+						finally:
+							# Limpiar archivo temporal
+							try:
+								if temp_name and temp_storage.exists(temp_name):
+									temp_storage.delete(temp_name)
+							except Exception:
+								pass
+
+					transaction.on_commit(finalize_photo_upload)
 			
 			messages.success(request, 'Medición guardada exitosamente')
 			return redirect('dashboard')
@@ -106,6 +179,12 @@ def cargar_medicion(request):
 			messages.error(request, f'Error en los datos: {str(e)}')
 			return redirect('cargar')
 		except Exception as e:
+			# Limpiar archivo temporal si algo falla antes del commit
+			try:
+				if temp_storage and temp_name and temp_storage.exists(temp_name):
+					temp_storage.delete(temp_name)
+			except Exception:
+				pass
 			from django.core.exceptions import ValidationError
 			if isinstance(e, ValidationError):
 				# Mostrar cada error de validación
@@ -124,6 +203,101 @@ def service_worker(request):
 	if not sw_file.exists():
 		return HttpResponseNotFound("Service worker not found")
 	return FileResponse(open(sw_file, "rb"), content_type="application/javascript")
+
+
+@login_required
+def get_weekly_route_data(request):
+	"""
+	API endpoint que retorna GeoJSON con las mediciones de la semana actual.
+	Parámetros opcionales: start_date, end_date (formato YYYY-MM-DD)
+	"""
+	from django.http import JsonResponse
+	
+	# Obtener rango de fechas (default: semana actual)
+	today = timezone.now().date()
+	week_start = today - timedelta(days=today.weekday())  # Lunes
+	week_end = week_start + timedelta(days=6)  # Domingo
+	
+	# Parámetros opcionales
+	start_date_param = request.GET.get('start_date')
+	end_date_param = request.GET.get('end_date')
+	
+	if start_date_param:
+		try:
+			week_start = datetime.strptime(start_date_param, '%Y-%m-%d').date()
+		except ValueError:
+			pass
+	
+	if end_date_param:
+		try:
+			week_end = datetime.strptime(end_date_param, '%Y-%m-%d').date()
+		except ValueError:
+			pass
+	
+	# Determinar si el usuario actual es staff o regular
+	if request.user.is_staff:
+		# Staff ve todas las mediciones de la semana
+		mediciones = Medicion.objects.filter(
+			timestamp__date__gte=week_start,
+			timestamp__date__lte=week_end,
+			captured_latitude__isnull=False,
+			captured_longitude__isnull=False
+		).exclude(
+			captured_latitude=0,
+			captured_longitude=0
+		).order_by('-timestamp')
+	else:
+		# Usuario regular solo ve sus propias mediciones
+		mediciones = Medicion.objects.filter(
+			user=request.user,
+			timestamp__date__gte=week_start,
+			timestamp__date__lte=week_end,
+			captured_latitude__isnull=False,
+			captured_longitude__isnull=False
+		).exclude(
+			captured_latitude=0,
+			captured_longitude=0
+		).order_by('-timestamp')
+	
+	# Construir GeoJSON FeatureCollection
+	features = []
+	for medicion in mediciones:
+		feature = {
+			"type": "Feature",
+			"geometry": {
+				"type": "Point",
+				"coordinates": [medicion.captured_longitude, medicion.captured_latitude]
+			},
+			"properties": {
+				"id": medicion.id,
+				"popup_title": medicion.timestamp.strftime('%d/%m %H:%M') + "hs",
+				"operator_name": medicion.user.username,
+				"value": str(medicion.value),
+				"ubicacion": medicion.ubicacion_manual or "Sin ubicación",
+				"detail_url": f"/gestion/empresas/{medicion.user.id}/mediciones/",
+				"is_valid": medicion.is_valid
+			}
+		}
+		features.append(feature)
+	
+	# GeoJSON FeatureCollection
+	geojson_data = {
+		"type": "FeatureCollection",
+		"features": features,
+		"properties": {
+			"week_start": week_start.isoformat(),
+			"week_end": week_end.isoformat(),
+			"count": len(features)
+		}
+	}
+	
+	return JsonResponse(geojson_data)
+
+
+@login_required
+def weekly_route(request):
+	"""Vista que renderiza el mapa semanal"""
+	return render(request, "web/weekly_route.html")
 
 
 # Staff Command Center

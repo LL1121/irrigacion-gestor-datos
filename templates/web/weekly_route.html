@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="dashboard-header mb-4">
+    <div class="container-fluid">
+        <div class="d-flex align-items-center gap-3">
+            <i class="bi bi-map fs-1"></i>
+            <div>
+                <h2 class="mb-0">Ruta Semanal</h2>
+                <p class="mb-0 opacity-75">Visualiza todas las mediciones de la semana en el mapa</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container-fluid p-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Mapa de Mediciones</h5>
+                </div>
+                <div class="card-body p-0">
+                    <!-- Leaflet Map Container -->
+                    <div id="weeklyRouteMap" style="height: 600px; border-radius: 8px; overflow: hidden;"></div>
+                    
+                    <!-- Stats -->
+                    <div class="p-3 border-top">
+                        <p class="mb-0"><strong>Total de mediciones:</strong> <span id="recordCount">0</span></p>
+                        <p class="mb-0"><strong>Período:</strong> <span id="periodDisplay">-</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Leaflet CSS & JS from CDN -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+    // Inicializar mapa centrado en Malargüe, Mendoza
+    const map = L.map('weeklyRouteMap').setView([-35.4695, -69.5797], 13);
+    
+    // Agregar tile layer (OpenStreetMap)
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19
+    }).addTo(map);
+    
+    // FeatureGroup para manejar bounds
+    const featureGroup = L.featureGroup();
+    
+    // Función para cargar datos semanales
+    function loadWeeklyRoute() {
+        // Obtener parámetros opcionales
+        const params = new URLSearchParams(window.location.search);
+        let url = '{% url "weekly_route_data" %}';
+        
+        if (params.get('start_date')) {
+            url += '?start_date=' + params.get('start_date');
+        }
+        if (params.get('end_date')) {
+            url += (url.includes('?') ? '&' : '?') + 'end_date=' + params.get('end_date');
+        }
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                let features = data.features || [];
+                
+                // ===== TEST DATA (HARDCODEADO) =====
+                const testFeatures = [
+                    {
+                        "type": "Feature",
+                        "geometry": {
+                            "type": "Point",
+                            "coordinates": [-69.5797, -35.4695]
+                        },
+                        "properties": {
+                            "id": 999,
+                            "popup_title": "31/01 09:30hs",
+                            "operator_name": "petroargentina",
+                            "value": "1250.75",
+                            "ubicacion": "Pozo Malargüe-A1",
+                            "detail_url": "#",
+                            "is_valid": true
+                        }
+                    },
+                    {
+                        "type": "Feature",
+                        "geometry": {
+                            "type": "Point",
+                            "coordinates": [-69.5850, -35.4650]
+                        },
+                        "properties": {
+                            "id": 998,
+                            "popup_title": "31/01 11:15hs",
+                            "operator_name": "ypf_norte",
+                            "value": "980.30",
+                            "ubicacion": "Pozo Malargüe-B2",
+                            "detail_url": "#",
+                            "is_valid": false
+                        }
+                    },
+                    {
+                        "type": "Feature",
+                        "geometry": {
+                            "type": "Point",
+                            "coordinates": [-69.5700, -35.4800]
+                        },
+                        "properties": {
+                            "id": 997,
+                            "popup_title": "31/01 14:45hs",
+                            "operator_name": "shell_vaca_muerta",
+                            "value": "1560.20",
+                            "ubicacion": "Pozo Malargüe-C3",
+                            "detail_url": "#",
+                            "is_valid": true
+                        }
+                    },
+                    {
+                        "type": "Feature",
+                        "geometry": {
+                            "type": "Point",
+                            "coordinates": [-69.5900, -35.4600]
+                        },
+                        "properties": {
+                            "id": 996,
+                            "popup_title": "31/01 16:20hs",
+                            "operator_name": "pan_american_energy",
+                            "value": "1120.55",
+                            "ubicacion": "Pozo Malargüe-D4",
+                            "detail_url": "#",
+                            "is_valid": true
+                        }
+                    }
+                ];
+                
+                // Si no hay datos reales, usar test data
+                if (features.length === 0) {
+                    console.log("No hay datos reales. Usando TEST DATA...");
+                    features = testFeatures;
+                }
+                
+                if (features.length === 0) {
+                    alert('No hay mediciones con GPS para esta semana');
+                    document.getElementById('recordCount').textContent = '0';
+                    return;
+                }
+                
+                // Iterar features y agregar markers
+                features.forEach(feature => {
+                    const { coordinates } = feature.geometry;
+                    const { popup_title, operator_name, detail_url, value, ubicacion, is_valid } = feature.properties;
+                    
+                    // Crear marker
+                    const marker = L.marker([coordinates[1], coordinates[0]]);
+                    
+                    // Crear popup HTML personalizado
+                    const popupHTML = `
+                        <div style="min-width: 250px;">
+                            <h6 style="margin-bottom: 0.5rem; color: #2c5f8d; font-weight: 600;">
+                                ${popup_title}
+                            </h6>
+                            <p style="margin: 0.25rem 0; font-size: 0.9rem;">
+                                <strong>Operador:</strong> ${operator_name}
+                            </p>
+                            <p style="margin: 0.25rem 0; font-size: 0.9rem;">
+                                <strong>Ubicación:</strong> ${ubicacion}
+                            </p>
+                            <p style="margin: 0.25rem 0; font-size: 0.9rem;">
+                                <strong>Valor:</strong> ${value} m³/h
+                            </p>
+                            <p style="margin: 0.25rem 0; font-size: 0.9rem;">
+                                <strong>Estado:</strong> 
+                                <span style="padding: 0.2rem 0.5rem; border-radius: 4px; background-color: ${is_valid ? '#28a745' : '#ffc107'}; color: white; font-size: 0.85rem;">
+                                    ${is_valid ? 'Validado' : 'Pendiente'}
+                                </span>
+                            </p>
+                            <a href="${detail_url}" 
+                               style="
+                                   display: inline-block;
+                                   margin-top: 0.5rem;
+                                   padding: 0.5rem 1rem;
+                                   background-color: #2c5f8d;
+                                   color: white;
+                                   text-decoration: none;
+                                   border-radius: 4px;
+                                   font-weight: 600;
+                                   transition: all 0.2s;
+                               "
+                               onmouseover="this.style.backgroundColor='#4a7ba7'; this.style.transform='translateY(-2px)';"
+                               onmouseout="this.style.backgroundColor='#2c5f8d'; this.style.transform='translateY(0)';">
+                                Ver Ficha
+                            </a>
+                        </div>
+                    `;
+                    
+                    marker.bindPopup(popupHTML);
+                    marker.addTo(featureGroup);
+                });
+                
+                // Agregar featureGroup al mapa
+                featureGroup.addTo(map);
+                
+                // Auto-zoom para mostrar todos los markers
+                if (features.length > 0) {
+                    const bounds = featureGroup.getBounds();
+                    map.fitBounds(bounds, { padding: [50, 50] });
+                }
+                
+                // Actualizar stats
+                document.getElementById('recordCount').textContent = features.length;
+                const props = data.properties || {};
+                if (props.week_start && props.week_end) {
+                    const startDate = new Date(props.week_start).toLocaleDateString('es-AR');
+                    const endDate = new Date(props.week_end).toLocaleDateString('es-AR');
+                    document.getElementById('periodDisplay').textContent = `${startDate} - ${endDate}`;
+                } else {
+                    // Para test data
+                    const today = new Date();
+                    const weekStart = new Date(today);
+                    weekStart.setDate(today.getDate() - today.getDay() + 1);
+                    const weekEnd = new Date(weekStart);
+                    weekEnd.setDate(weekStart.getDate() + 6);
+                    
+                    document.getElementById('periodDisplay').textContent = 
+                        `${weekStart.toLocaleDateString('es-AR')} - ${weekEnd.toLocaleDateString('es-AR')}`;
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching route data:', error);
+                alert('Error al cargar los datos de la ruta');
+            });
+    }
+    
+    // Cargar datos al abrir la página
+    document.addEventListener('DOMContentLoaded', loadWeeklyRoute);
+</script>
+{% endblock %}
