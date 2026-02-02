@@ -1,0 +1,9 @@
+# Development Testing & Quality
+pytest==8.3.4
+pytest-django==4.9.0
+coverage==7.6.10
+django-livereload-server==0.5.1
+tornado==6.5.4
+
+# Include base requirements
+-r base.txt

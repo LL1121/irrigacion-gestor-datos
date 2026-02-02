@@ -73,7 +73,9 @@ staticfiles/
 
 # Environments / virtualenvs
 .env
-.env.*
+.env.local
+.env.production
+.env.*.local
 .venv
 .venv*/
 venv/

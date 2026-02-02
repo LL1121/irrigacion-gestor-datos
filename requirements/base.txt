@@ -1,0 +1,24 @@
+# === Core Django ===
+Django==6.0.1
+asgiref==3.11.0
+sqlparse==0.5.5
+tzdata==2025.3
+
+# === Database & Caching ===
+psycopg2-binary==2.9.9
+dj-database-url==2.2.0
+django-redis==5.4.0
+
+# === Security & Rate Limiting ===
+django-ratelimit==4.1.0
+python-decouple==3.8
+
+# === Static Files & Performance ===
+pillow==12.1.0
+whitenoise==6.6.0
+
+# === WSGI Server ===
+gunicorn==21.2.0
+
+# === Monitoring & Error Tracking ===
+sentry-sdk==2.22.0
