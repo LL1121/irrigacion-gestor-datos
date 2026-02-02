@@ -157,16 +157,28 @@ CSRF_TRUSTED_ORIGINS = [
 ]
 
 # Cache (Redis)
-CACHES = {
-    'default': {
-        'BACKEND': 'django_redis.cache.RedisCache',
-        'LOCATION': config('REDIS_URL', default='redis://127.0.0.1:6379/1'),
-        'OPTIONS': {
-            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
-        },
-        'TIMEOUT': 60,
+# Cache Configuration
+# Use Redis in production, locmem (in-memory) in development
+if DEBUG:
+    # Development: use in-memory cache (no Redis needed)
+    CACHES = {
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'malargue-dev-cache',
+        }
     }
-}
+else:
+    # Production: use Redis
+    CACHES = {
+        'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': config('REDIS_URL', default='redis://127.0.0.1:6379/1'),
+            'OPTIONS': {
+                'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            },
+            'TIMEOUT': 60,
+        }
+    }
 
 # Logging
 LOGGING = {
