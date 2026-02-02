@@ -19,10 +19,6 @@
                     </a>
                 </div>
                 <div style="flex: 1;" class="text-end">
-                    <button id="syncButton" class="btn btn-outline-light" style="margin-right: 0.5rem; position: relative;" onclick="manualSync()" title="Sincronizar ahora">
-                        <i class="bi bi-arrow-repeat"></i>
-                        <span id="pendingUploadsBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display: none;">0</span>
-                    </button>
                     {% if user.is_superuser %}
                     <a href="/admin/" class="btn btn-outline-light" style="margin-right: 0.5rem;">
                         <i class="bi bi-gear"></i>

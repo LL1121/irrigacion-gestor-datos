@@ -59,7 +59,18 @@ async function addToQueue(formData, fileBlob) {
         
         const request = store.add(item);
         
-        request.onsuccess = () => resolve(request.result);
+        request.onsuccess = async () => {
+            // Registrar background sync para sincronización automática
+            if ('serviceWorker' in navigator && 'sync' in self.registration) {
+                try {
+                    await self.registration.sync.register('sync-uploads');
+                    console.log('✓ Background sync registered for new upload');
+                } catch (error) {
+                    console.log('Could not register background sync:', error);
+                }
+            }
+            resolve(request.result);
+        };
         request.onerror = () => reject(request.error);
     });
 }
@@ -205,36 +216,6 @@ function showNotification(title, message, icon = 'info') {
 }
 
 /**
- * Get pending uploads count for UI badge
- */
-async function getPendingCount() {
-    try {
-        const pending = await getPendingUploads();
-        return pending.length;
-    } catch (error) {
-        console.error('Error getting pending count:', error);
-        return 0;
-    }
-}
-
-/**
- * Update UI to show pending uploads count
- */
-async function updatePendingBadge() {
-    const count = await getPendingCount();
-    const badge = document.getElementById('pendingUploadsBadge');
-    
-    if (badge) {
-        if (count > 0) {
-            badge.textContent = count;
-            badge.style.display = 'inline-block';
-        } else {
-            badge.style.display = 'none';
-        }
-    }
-}
-
-/**
  * Initialize offline upload system
  */
 async function initOfflineUpload() {
@@ -243,36 +224,69 @@ async function initOfflineUpload() {
         await initDB();
         console.log('✓ IndexedDB initialized');
         
-        // Update pending badge
-        await updatePendingBadge();
+        // Register Background Sync for automatic upload
+        if ('serviceWorker' in navigator && 'sync' in self.registration) {
+            try {
+                await self.registration.sync.register('sync-uploads');
+                console.log('✓ Background Sync registered');
+            } catch (error) {
+                console.log('Background Sync not available:', error);
+            }
+        }
+        
+        // Register Periodic Background Sync (si está disponible)
+        if ('serviceWorker' in navigator && 'periodicSync' in self.registration) {
+            try {
+                await self.registration.periodicSync.register('periodic-sync-uploads', {
+                    minInterval: 60 * 60 * 1000 // 1 hora
+                });
+                console.log('✓ Periodic Background Sync registered');
+            } catch (error) {
+                console.log('Periodic Background Sync not available:', error);
+            }
+        }
         
         // Add network status listeners
         window.addEventListener('online', async () => {
-            console.log('✓ Connection restored. Processing upload queue...');
-            showNotification(
-                'Conexión restaurada',
-                'Sincronizando mediciones pendientes...',
-                'info'
-            );
-            await processUploadQueue();
-            await updatePendingBadge();
+            console.log('✓ Connection restored. Triggering automatic sync...');
+            
+            // Intentar registrar background sync
+            if ('serviceWorker' in navigator && 'sync' in self.registration) {
+                await self.registration.sync.register('sync-uploads');
+            } else {
+                // Fallback: sincronizar directamente si background sync no está disponible
+                await processUploadQueue();
+            }
         });
         
         window.addEventListener('offline', () => {
             console.log('⚠ Connection lost. Uploads will be queued.');
             showNotification(
                 'Sin conexión',
-                'Las mediciones se guardarán localmente',
+                'Las mediciones se guardarán localmente y se sincronizarán automáticamente',
                 'warning'
             );
         });
+        
+        // Listen for sync messages from service worker
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', (event) => {
+                if (event.data.type === 'SYNC_SUCCESS') {
+                    showNotification(
+                        '¡Sincronizado!',
+                        `Medición sincronizada automáticamente`,
+                        'success'
+                    );
+                }
+            });
+        }
         
         // Process queue on page load if online
         if (navigator.onLine) {
             await processUploadQueue();
         }
         
-        console.log('✓ Offline upload system ready');
+        console.log('✓ Offline upload system ready with automatic background sync');
         
     } catch (error) {
         console.error('Failed to initialize offline upload system:', error);
