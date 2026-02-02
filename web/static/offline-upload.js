@@ -48,7 +48,6 @@ async function addToQueue(formData, fileBlob) {
         const store = transaction.objectStore(STORE_NAME);
         
         const item = {
-            ubicacion_manual: formData.get('ubicacion_manual'),
             valor_caudalimetro: formData.get('valor_caudalimetro'),
             observaciones: formData.get('observaciones'),
             csrfToken: formData.get('csrfmiddlewaretoken'),
@@ -135,9 +134,8 @@ async function processUploadQueue() {
         
         for (const item of pendingUploads) {
             try {
-                // Reconstruct FormData
+                // Reconstruct FormData (ubicacion_manual is now auto-assigned by backend from empresa_perfil)
                 const formData = new FormData();
-                formData.append('ubicacion_manual', item.ubicacion_manual);
                 formData.append('valor_caudalimetro', item.valor_caudalimetro);
                 formData.append('observaciones', item.observaciones || '');
                 formData.append('csrfmiddlewaretoken', item.csrfToken);
@@ -157,7 +155,7 @@ async function processUploadQueue() {
                 // Show success notification
                 showNotification(
                     '¡Sincronizado!',
-                    `Medición "${item.ubicacion_manual}" subida exitosamente`,
+                    `Medición de ${item.timestamp.substring(0, 10)} subida exitosamente`,
                     'success'
                 );
                 
@@ -167,7 +165,7 @@ async function processUploadQueue() {
                 // Don't delete from queue if upload fails
                 showNotification(
                     'Error al sincronizar',
-                    `No se pudo subir "${item.ubicacion_manual}". Se reintentará.`,
+                    `No se pudo subir medición de ${item.timestamp.substring(0, 10)}. Se reintentará.`,
                     'error'
                 );
             }

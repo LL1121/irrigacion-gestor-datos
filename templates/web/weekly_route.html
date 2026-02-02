@@ -3,12 +3,17 @@
 {% block content %}
 <div class="dashboard-header mb-4">
     <div class="container-fluid">
-        <div class="d-flex align-items-center gap-3">
-            <i class="bi bi-map fs-1"></i>
-            <div>
-                <h2 class="mb-0">Ruta Semanal</h2>
-                <p class="mb-0 opacity-75">Visualiza todas las mediciones de la semana en el mapa</p>
+        <div class="d-flex align-items-center justify-content-between">
+            <div class="d-flex align-items-center gap-3">
+                <i class="bi bi-map fs-1"></i>
+                <div>
+                    <h2 class="mb-0">Mapa</h2>
+                    <p class="mb-0 opacity-75">Visualiza todas las mediciones en el mapa</p>
+                </div>
             </div>
+            <a href="{% url 'dashboard' %}" class="btn btn-outline-light">
+                <i class="bi bi-arrow-left"></i> Volver
+            </a>
         </div>
     </div>
 </div>

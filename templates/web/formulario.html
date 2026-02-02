@@ -32,14 +32,6 @@
                         <form id="measurementForm" method="post" enctype="multipart/form-data" action="{% url 'cargar' %}">
                             {% csrf_token %}
                             <div class="mb-4">
-                                <label for="ubicacion_manual" class="form-label">
-                                    <i class="bi bi-geo-alt-fill me-2"></i>Ubicación / Pozo
-                                </label>
-                                <input type="text" class="form-control" id="ubicacion_manual" name="ubicacion_manual" 
-                                       placeholder="Ej: Pozo Norte-12 o Sector A" required>
-                            </div>
-
-                            <div class="mb-4">
                                 <label for="valor_caudalimetro" class="form-label">
                                     <i class="bi bi-speedometer2 me-2"></i>Valor Caudalímetro (m³/h)
                                 </label>

@@ -127,7 +127,6 @@ def cargar_medicion(request):
 					return redirect('dashboard')
 
 			# Obtener datos del formulario
-			ubicacion_manual = request.POST.get('ubicacion_manual')
 			valor_caudalimetro = request.POST.get('valor_caudalimetro')
 			foto_evidencia = request.FILES.get('foto_evidencia')
 			observaciones = request.POST.get('observaciones', '')
@@ -136,6 +135,15 @@ def cargar_medicion(request):
 			if not valor_caudalimetro:
 				messages.error(request, 'El valor del caudalímetro es obligatorio')
 				return redirect('cargar')
+			
+			# Obtener ubicación de la empresa del usuario
+			try:
+				from .models import EmpresaPerfil
+				empresa_perfil = EmpresaPerfil.objects.get(usuario=request.user)
+				ubicacion_manual = empresa_perfil.ubicacion or f"Ubicación de {request.user.username}"
+			except EmpresaPerfil.DoesNotExist:
+				# Si no tiene empresa perfil, usar el nombre de usuario
+				ubicacion_manual = f"Ubicación de {request.user.username}"
 			
 			# Flujo robusto: guardar archivo temporal y confirmar tras commit
 			temp_storage = FileSystemStorage(location=str(Path(settings.MEDIA_ROOT) / "tmp_uploads"))
