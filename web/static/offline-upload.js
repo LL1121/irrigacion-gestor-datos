@@ -111,17 +111,47 @@ async function deleteFromQueue(id) {
  * Send form data to server
  */
 async function sendToServer(formData) {
-    const response = await fetch('/cargar/', {
-        method: 'POST',
-        body: formData,
-        credentials: 'same-origin'
-    });
-    
-    if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+    console.log('Enviando POST a /cargar/...');
+    try {
+        const response = await fetch('/cargar/', {
+            method: 'POST',
+            body: formData,
+            credentials: 'same-origin',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'Accept': 'application/json'
+            }
+        });
+        
+        console.log(`Response status: ${response.status}, url: ${response.url}`);
+        
+        if (!response.ok) {
+            console.log('Server returned HTTP error!');
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        // Intentar parsear como JSON
+        let data = null;
+        try {
+            data = await response.json();
+            console.log('Response JSON:', data);
+            
+            // Verificar si la respuesta indica éxito
+            if (data.success === false) {
+                console.error('Server returned success: false', data.message);
+                throw new Error(data.message || 'Server error');
+            }
+        } catch (jsonError) {
+            // Si no es JSON válido, asumir que el redirect fue exitoso
+            console.log('Response is not JSON (probably a redirect), assuming success');
+        }
+        
+        console.log('Upload successful!');
+        return response;
+    } catch (error) {
+        console.error('sendToServer error:', error.message);
+        throw error;
     }
-    
-    return response;
 }
 
 /**
@@ -225,22 +255,28 @@ async function initOfflineUpload() {
         console.log('✓ IndexedDB initialized');
         
         // Register Background Sync for automatic upload
-        if ('serviceWorker' in navigator && 'sync' in self.registration) {
+        if ('serviceWorker' in navigator) {
             try {
-                await self.registration.sync.register('sync-uploads');
-                console.log('✓ Background Sync registered');
+                const registration = await navigator.serviceWorker.ready;
+                if ('sync' in registration) {
+                    await registration.sync.register('sync-uploads');
+                    console.log('✓ Background Sync registered');
+                }
             } catch (error) {
                 console.log('Background Sync not available:', error);
             }
         }
         
         // Register Periodic Background Sync (si está disponible)
-        if ('serviceWorker' in navigator && 'periodicSync' in self.registration) {
+        if ('serviceWorker' in navigator) {
             try {
-                await self.registration.periodicSync.register('periodic-sync-uploads', {
-                    minInterval: 60 * 60 * 1000 // 1 hora
-                });
-                console.log('✓ Periodic Background Sync registered');
+                const registration = await navigator.serviceWorker.ready;
+                if ('periodicSync' in registration) {
+                    await registration.periodicSync.register('periodic-sync-uploads', {
+                        minInterval: 60 * 60 * 1000 // 1 hora
+                    });
+                    console.log('✓ Periodic Background Sync registered');
+                }
             } catch (error) {
                 console.log('Periodic Background Sync not available:', error);
             }
@@ -294,12 +330,47 @@ async function initOfflineUpload() {
 }
 
 /**
+ * Update pending badge (if exists)
+ */
+async function updatePendingBadge() {
+    try {
+        const pendingCount = await getPendingCount();
+        const badge = document.getElementById('pending-uploads-badge');
+        if (badge) {
+            if (pendingCount > 0) {
+                badge.textContent = pendingCount;
+                badge.style.display = 'inline-block';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+    } catch (error) {
+        console.log('Could not update pending badge:', error);
+    }
+}
+
+/**
+ * Get count of pending uploads
+ */
+async function getPendingCount() {
+    try {
+        const uploads = await getPendingUploads();
+        return uploads.length;
+    } catch (error) {
+        console.log('Could not get pending count:', error);
+        return 0;
+    }
+}
+
+/**
  * Handle form submission with offline support
  */
 async function handleFormSubmit(event, form) {
+    console.log('handleFormSubmit called!');
     event.preventDefault();
     
     const formData = new FormData(form);
+    
     const fileInput = form.querySelector('input[type="file"]');
     const fileBlob = fileInput && fileInput.files[0] ? fileInput.files[0] : null;
     

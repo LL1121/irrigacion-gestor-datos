@@ -121,7 +121,7 @@ Acceder a: http://127.0.0.1:8000
 
 ## 🚀 Deployment (Producción)
 
-Ver guía completa en [DEPLOYMENT.md](DEPLOYMENT.md)
+Ver guía completa en [docs/README.md](docs/README.md)
 
 ### Quick Start
 ```bash

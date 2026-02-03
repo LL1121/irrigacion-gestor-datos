@@ -70,10 +70,27 @@
             url += (url.includes('?') ? '&' : '?') + 'end_date=' + params.get('end_date');
         }
         
-        fetch(url)
-            .then(response => response.json())
+        // Evitar cache (Service Worker / navegador)
+        const cacheBuster = `_ts=${Date.now()}`;
+        url += (url.includes('?') ? '&' : '?') + cacheBuster;
+
+        fetch(url, { cache: 'no-store' })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
+                console.log('weekly-route data', data);
                 const features = data.features || [];
+                
+                // Limpiar markers anteriores y alertas
+                featureGroup.clearLayers();
+                const existingAlert = document.querySelector('.weekly-route-alert');
+                if (existingAlert) {
+                    existingAlert.remove();
+                }
                 
                 // Verificar si hay mediciones con GPS
                 if (features.length === 0) {
@@ -82,75 +99,214 @@
                     
                     // Mostrar mensaje informativo
                     const messageDiv = document.createElement('div');
-                    messageDiv.className = 'alert alert-info m-3';
+                    messageDiv.className = 'alert alert-info m-3 weekly-route-alert';
                     messageDiv.innerHTML = '<i class="bi bi-info-circle"></i> No hay mediciones con coordenadas GPS para esta semana.';
                     document.querySelector('.card-body').appendChild(messageDiv);
                     return;
                 }
                 
-                // Iterar features y agregar markers
+                // Agrupar features por coordenadas
+                const coordGroups = {};
                 features.forEach(feature => {
                     const { coordinates } = feature.geometry;
-                    const { popup_title, operator_name, detail_url, value, ubicacion, is_valid } = feature.properties;
+                    let lat = parseFloat(coordinates[1]);
+                    let lon = parseFloat(coordinates[0]);
                     
-                    // Crear marker
-                    const marker = L.marker([coordinates[1], coordinates[0]]);
+                    if (Number.isNaN(lat) || Number.isNaN(lon)) {
+                        return;
+                    }
                     
-                    // Crear popup HTML personalizado
-                    const popupHTML = `
-                        <div style="min-width: 250px;">
-                            <h6 style="margin-bottom: 0.5rem; color: #2c5f8d; font-weight: 600;">
-                                ${popup_title}
-                            </h6>
-                            <p style="margin: 0.25rem 0; font-size: 0.9rem;">
-                                <strong>Operador:</strong> ${operator_name}
-                            </p>
-                            <p style="margin: 0.25rem 0; font-size: 0.9rem;">
-                                <strong>Ubicación:</strong> ${ubicacion}
-                            </p>
-                            <p style="margin: 0.25rem 0; font-size: 0.9rem;">
-                                <strong>Valor:</strong> ${value} m³/h
-                            </p>
-                            <p style="margin: 0.25rem 0; font-size: 0.9rem;">
-                                <strong>Estado:</strong> 
-                                <span style="padding: 0.2rem 0.5rem; border-radius: 4px; background-color: ${is_valid ? '#28a745' : '#ffc107'}; color: white; font-size: 0.85rem;">
-                                    ${is_valid ? 'Validado' : 'Pendiente'}
-                                </span>
-                            </p>
-                            <a href="${detail_url}" 
-                               style="
-                                   display: inline-block;
-                                   margin-top: 0.5rem;
-                                   padding: 0.5rem 1rem;
-                                   background-color: #2c5f8d;
-                                   color: white;
-                                   text-decoration: none;
-                                   border-radius: 4px;
-                                   font-weight: 600;
-                                   transition: all 0.2s;
-                               "
-                               onmouseover="this.style.backgroundColor='#4a7ba7'; this.style.transform='translateY(-2px)';"
-                               onmouseout="this.style.backgroundColor='#2c5f8d'; this.style.transform='translateY(0)';">
-                                Ver Ficha
-                            </a>
-                        </div>
-                    `;
+                    const key = `${lat.toFixed(6)},${lon.toFixed(6)}`;
+                    if (!coordGroups[key]) {
+                        coordGroups[key] = { lat, lon, features: [] };
+                    }
+                    coordGroups[key].features.push(feature);
+                });
+                
+                // Crear markers para cada grupo de coordenadas
+                let markersAdded = 0;
+                Object.values(coordGroups).forEach(group => {
+                    const marker = L.marker([group.lat, group.lon]);
                     
-                    marker.bindPopup(popupHTML);
+                    // Si hay una sola medición, mostrar popup normal
+                    if (group.features.length === 1) {
+                        const feature = group.features[0];
+                        const { popup_title, operator_name, detail_url, value, ubicacion, is_valid } = feature.properties;
+                        
+                        const popupHTML = `
+                            <div style="min-width: 250px;">
+                                <h6 style="margin-bottom: 0.5rem; color: #2c5f8d; font-weight: 600;">
+                                    ${popup_title}
+                                </h6>
+                                <p style="margin: 0.25rem 0; font-size: 0.9rem;">
+                                    <strong>Operador:</strong> ${operator_name}
+                                </p>
+                                <p style="margin: 0.25rem 0; font-size: 0.9rem;">
+                                    <strong>Ubicación:</strong> ${ubicacion}
+                                </p>
+                                <p style="margin: 0.25rem 0; font-size: 0.9rem;">
+                                    <strong>Valor:</strong> ${value} m³/h
+                                </p>
+                                <p style="margin: 0.25rem 0; font-size: 0.9rem;">
+                                    <strong>Estado:</strong> 
+                                    <span style="padding: 0.2rem 0.5rem; border-radius: 4px; background-color: ${is_valid ? '#28a745' : '#ffc107'}; color: white; font-size: 0.85rem;">
+                                        ${is_valid ? 'Validado' : 'Pendiente'}
+                                    </span>
+                                </p>
+                                <a href="${detail_url}" 
+                                   style="
+                                       display: inline-block;
+                                       margin-top: 0.5rem;
+                                       padding: 0.5rem 1rem;
+                                       background-color: #2c5f8d;
+                                       color: white;
+                                       text-decoration: none;
+                                       border-radius: 4px;
+                                       font-weight: 600;
+                                       transition: all 0.2s;
+                                   "
+                                   onmouseover="this.style.backgroundColor='#4a7ba7'; this.style.transform='translateY(-2px)';"
+                                   onmouseout="this.style.backgroundColor='#2c5f8d'; this.style.transform='translateY(0)';">
+                                    Ver Ficha
+                                </a>
+                            </div>
+                        `;
+                        marker.bindPopup(popupHTML);
+                    } 
+                    // Si hay múltiples mediciones, mostrar menú de selección
+                    else {
+                        const popupContent = document.createElement('div');
+                        popupContent.style.minWidth = '280px';
+                        
+                        const title = document.createElement('h6');
+                        title.style.marginBottom = '0.75rem';
+                        title.style.color = '#2c5f8d';
+                        title.style.fontWeight = '600';
+                        title.textContent = `${group.features.length} mediciones en este punto`;
+                        popupContent.appendChild(title);
+                        
+                        const listContainer = document.createElement('div');
+                        listContainer.style.marginBottom = '0.5rem';
+                        
+                        group.features.forEach((feature, index) => {
+                            const { popup_title, operator_name, detail_url, value, ubicacion, is_valid } = feature.properties;
+                            
+                            const itemButton = document.createElement('button');
+                            itemButton.style.cssText = `
+                                width: 100%;
+                                text-align: left;
+                                padding: 0.6rem;
+                                margin-bottom: 0.4rem;
+                                border: 1px solid #ddd;
+                                border-radius: 4px;
+                                background-color: #f8f9fa;
+                                cursor: pointer;
+                                transition: all 0.2s;
+                            `;
+                            itemButton.innerHTML = `
+                                <div style="font-weight: 600; color: #2c5f8d; margin-bottom: 0.2rem;">${popup_title}</div>
+                                <div style="font-size: 0.85rem; color: #666;">Operador: ${operator_name}</div>
+                                <div style="font-size: 0.85rem; color: #666;">Valor: ${value} m³/h</div>
+                            `;
+                            
+                            itemButton.onmouseover = () => {
+                                itemButton.style.backgroundColor = '#e9ecef';
+                                itemButton.style.borderColor = '#2c5f8d';
+                            };
+                            itemButton.onmouseout = () => {
+                                itemButton.style.backgroundColor = '#f8f9fa';
+                                itemButton.style.borderColor = '#ddd';
+                            };
+                            
+                            itemButton.onclick = (e) => {
+                                e.stopPropagation();
+                                // Limpiar y mostrar detalles de la medición seleccionada
+                                popupContent.innerHTML = `
+                                    <div style="min-width: 250px;">
+                                        <button id="backButton" style="
+                                            background: none;
+                                            border: none;
+                                            color: #2c5f8d;
+                                            cursor: pointer;
+                                            padding: 0.25rem 0;
+                                            margin-bottom: 0.5rem;
+                                            font-size: 0.9rem;
+                                        ">
+                                            ← Volver a la lista
+                                        </button>
+                                        <h6 style="margin-bottom: 0.5rem; color: #2c5f8d; font-weight: 600;">
+                                            ${popup_title}
+                                        </h6>
+                                        <p style="margin: 0.25rem 0; font-size: 0.9rem;">
+                                            <strong>Operador:</strong> ${operator_name}
+                                        </p>
+                                        <p style="margin: 0.25rem 0; font-size: 0.9rem;">
+                                            <strong>Ubicación:</strong> ${ubicacion}
+                                        </p>
+                                        <p style="margin: 0.25rem 0; font-size: 0.9rem;">
+                                            <strong>Valor:</strong> ${value} m³/h
+                                        </p>
+                                        <p style="margin: 0.25rem 0; font-size: 0.9rem;">
+                                            <strong>Estado:</strong> 
+                                            <span style="padding: 0.2rem 0.5rem; border-radius: 4px; background-color: ${is_valid ? '#28a745' : '#ffc107'}; color: white; font-size: 0.85rem;">
+                                                ${is_valid ? 'Validado' : 'Pendiente'}
+                                            </span>
+                                        </p>
+                                        <a href="${detail_url}" 
+                                           style="
+                                               display: inline-block;
+                                               margin-top: 0.5rem;
+                                               padding: 0.5rem 1rem;
+                                               background-color: #2c5f8d;
+                                               color: white;
+                                               text-decoration: none;
+                                               border-radius: 4px;
+                                               font-weight: 600;
+                                               transition: all 0.2s;
+                                           "
+                                           onmouseover="this.style.backgroundColor='#4a7ba7'; this.style.transform='translateY(-2px)';"
+                                           onmouseout="this.style.backgroundColor='#2c5f8d'; this.style.transform='translateY(0)';">
+                                            Ver Ficha
+                                        </a>
+                                    </div>
+                                `;
+                                
+                                // Agregar funcionalidad al botón de volver
+                                document.getElementById('backButton').onclick = (e) => {
+                                    e.stopPropagation();
+                                    popupContent.innerHTML = '';
+                                    popupContent.appendChild(title);
+                                    popupContent.appendChild(listContainer);
+                                };
+                            };
+                            
+                            listContainer.appendChild(itemButton);
+                        });
+                        
+                        popupContent.appendChild(listContainer);
+                        marker.bindPopup(popupContent);
+                    }
+                    
                     marker.addTo(featureGroup);
+                    markersAdded += 1;
                 });
                 
                 // Agregar featureGroup al mapa
                 featureGroup.addTo(map);
                 
                 // Auto-zoom para mostrar todos los markers
-                if (features.length > 0) {
+                if (markersAdded > 0) {
+                    map.invalidateSize();
                     const bounds = featureGroup.getBounds();
-                    map.fitBounds(bounds, { padding: [50, 50] });
+                    if (bounds.isValid()) {
+                        map.fitBounds(bounds, { padding: [50, 50] });
+                    } else {
+                        map.setView([-35.4695, -69.5797], 13);
+                    }
                 }
                 
                 // Actualizar stats
-                document.getElementById('recordCount').textContent = features.length;
+                document.getElementById('recordCount').textContent = markersAdded;
                 
                 // Mostrar período desde los datos del API
                 const props = data.properties || {};

@@ -4,8 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Irrigación - Oil & Gas Reporting</title>
+    <title>Irrigación - Reporte semanal</title>
     <link rel="manifest" href="{% static 'manifest.json' %}">
+    <link rel="icon" type="image/svg+xml" href="{% static 'favicon.svg' %}">
     <meta name="theme-color" content="#2c5f8d">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css" rel="stylesheet">
@@ -25,24 +26,30 @@
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow-x: hidden;
         }
 
         .app-container {
             background: white;
             min-height: 100vh;
             box-shadow: 0 0 40px rgba(0,0,0,0.2);
+            width: 100%;
+            overflow-x: hidden;
         }
 
         body {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow-x: hidden;
         }
 
         .app-container {
             background: white;
             min-height: 100vh;
             box-shadow: 0 0 40px rgba(0,0,0,0.2);
+            width: 100%;
+            overflow-x: hidden;
         }
 
         /* Login Styles */
@@ -239,6 +246,26 @@
         /* Notification Styles - Removed, using SweetAlert2 */
 
         @media (max-width: 768px) {
+            .dashboard-header {
+                padding: 1.25rem 1rem;
+            }
+
+            .dashboard-header .d-flex {
+                flex-direction: column;
+                align-items: flex-start !important;
+                gap: 0.75rem !important;
+            }
+
+            .dashboard-header .text-end {
+                text-align: left !important;
+                width: 100%;
+            }
+
+            .dashboard-header .btn {
+                width: 100%;
+                margin-top: 0.25rem;
+            }
+
             .greeting {
                 font-size: 1.4rem;
             }
@@ -254,12 +281,160 @@
             .notification {
                 min-width: auto;
             }
+
+            .action-card-green {
+                padding: 1.5rem;
+            }
+
+            .action-card-icon {
+                font-size: 2.2rem;
+            }
+
+            .form-control, .form-select {
+                font-size: 1rem;
+                padding: 0.75rem;
+            }
+
+            .btn-primary, .btn-success, .btn-outline-secondary {
+                font-size: 1rem;
+                padding: 0.75rem 1rem;
+            }
+
+            .table th, .table td {
+                padding: 0.6rem;
+                font-size: 0.9rem;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .greeting {
+                font-size: 1.2rem;
+            }
+
+            .greeting-subtitle {
+                font-size: 0.85rem;
+            }
+
+            .action-card-title {
+                font-size: 1.15rem;
+            }
+
+            .badge {
+                font-size: 0.75rem;
+                padding: 0.35rem 0.6rem;
+            }
+        }
+
+        /* Minimal photo viewer */
+        .photo-viewer {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.65);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+            z-index: 1056;
+        }
+
+        .photo-viewer.open {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .photo-viewer__panel {
+            position: relative;
+            background: transparent;
+            border-radius: 12px;
+            padding: 0;
+            max-width: 92vw;
+            max-height: 86vh;
+            box-shadow: none;
+            transform: scale(0.96);
+            transition: transform 0.2s ease;
+        }
+
+        .photo-viewer.open .photo-viewer__panel {
+            transform: scale(1);
+        }
+
+        .photo-viewer__image {
+            max-width: 88vw;
+            max-height: 76vh;
+            display: block;
+            margin: 0 auto;
+            border-radius: 8px;
+            transform-origin: center center;
+            transition: transform 0.15s ease;
+            cursor: grab;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-user-drag: none;
+            -webkit-touch-callout: none;
+        }
+
+        .photo-viewer__image.is-dragging {
+            cursor: grabbing;
+        }
+
+        .photo-viewer__close {
+            position: fixed;
+            top: 40px;
+            right: 40px;
+            width: 36px;
+            height: 36px;
+            border: none;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.9);
+            color: #fff;
+            display: grid;
+            place-items: center;
+            cursor: pointer;
+            z-index: 1057;
+        }
+
+        .photo-viewer__controls {
+            position: absolute;
+            right: 12px;
+            bottom: 12px;
+            display: flex;
+            gap: 8px;
+        }
+
+        .photo-viewer__controls button {
+            border: none;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: rgba(15, 23, 42, 0.85);
+            color: #fff;
+            cursor: pointer;
+        }
+
+        .photo-viewer-trigger {
+            cursor: zoom-in;
         }
     </style>
 </head>
 <body>
     <div class="app-container">
         {% block content %}{% endblock %}
+    </div>
+
+    <div class="photo-viewer" id="photoViewer" aria-hidden="true">
+        <div class="photo-viewer__panel" role="dialog" aria-modal="true" aria-label="Vista de imagen">
+            <button type="button" class="photo-viewer__close" id="photoViewerClose" aria-label="Cerrar">
+                <i class="bi bi-x-lg"></i>
+            </button>
+            <img src="" alt="Vista ampliada" class="photo-viewer__image" id="photoViewerImage">
+            <div class="photo-viewer__controls" aria-label="Zoom">
+                <button type="button" id="photoZoomOut" aria-label="Alejar">-</button>
+                <button type="button" id="photoZoomReset" aria-label="Restablecer">1x</button>
+                <button type="button" id="photoZoomIn" aria-label="Acercar">+</button>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -360,19 +535,6 @@
                 });
             }
 
-            const measurementForm = document.getElementById('measurementForm');
-            if (measurementForm) {
-                measurementForm.addEventListener('submit', (e) => {
-                    e.preventDefault();
-                    showNotification('¡Éxito!', 'Medición guardada exitosamente', 'success', 3500);
-                    measurementForm.reset();
-                    const fileNameLabel = document.getElementById('fileName');
-                    if (fileNameLabel) {
-                        fileNameLabel.textContent = 'Ningún archivo seleccionado';
-                        fileNameLabel.classList.remove('text-success');
-                    }
-                });
-            }
         });
     </script>
     <script>
@@ -382,6 +544,180 @@
                     .catch((err) => console.error('SW registration failed', err));
             });
         }
+    </script>
+    <script>
+        (function() {
+            const viewer = document.getElementById('photoViewer');
+            const panel = viewer ? viewer.querySelector('.photo-viewer__panel') : null;
+            const image = document.getElementById('photoViewerImage');
+            const closeBtn = document.getElementById('photoViewerClose');
+            const zoomInBtn = document.getElementById('photoZoomIn');
+            const zoomOutBtn = document.getElementById('photoZoomOut');
+            const zoomResetBtn = document.getElementById('photoZoomReset');
+            let scale = 1;
+            let translateX = 0;
+            let translateY = 0;
+            let isDragging = false;
+            let startX = 0;
+            let startY = 0;
+            let lastX = 0;
+            let lastY = 0;
+
+            const applyTransform = () => {
+                if (image) {
+                    image.style.transform = `translate(${translateX}px, ${translateY}px) scale(${scale})`;
+                }
+                if (zoomResetBtn) {
+                    zoomResetBtn.textContent = `${scale.toFixed(1)}x`;
+                }
+            };
+
+            const resetTransform = () => {
+                translateX = 0;
+                translateY = 0;
+                lastX = 0;
+                lastY = 0;
+                scale = 1;
+                applyTransform();
+            };
+
+            const openViewer = (src) => {
+                if (!viewer || !image) return;
+                image.src = src;
+                resetTransform();
+                viewer.classList.add('open');
+                viewer.setAttribute('aria-hidden', 'false');
+            };
+
+            const closeViewer = () => {
+                if (!viewer || !image) return;
+                viewer.classList.remove('open');
+                viewer.setAttribute('aria-hidden', 'true');
+                image.src = '';
+                resetTransform();
+            };
+
+            document.addEventListener('click', (event) => {
+                const trigger = event.target.closest('[data-photo-viewer]');
+                if (!trigger) return;
+                event.preventDefault();
+                const src = trigger.getAttribute('data-photo-viewer');
+                if (src) {
+                    openViewer(src);
+                }
+            }, true);
+
+            if (closeBtn) {
+                closeBtn.addEventListener('click', closeViewer);
+            }
+
+            if (viewer) {
+                viewer.addEventListener('click', (event) => {
+                    if (event.target === viewer) {
+                        closeViewer();
+                    }
+                });
+            }
+
+            if (image) {
+                image.addEventListener('pointerdown', (event) => {
+                    if (scale <= 1) return;
+                    isDragging = true;
+                    image.classList.add('is-dragging');
+                    startX = event.clientX;
+                    startY = event.clientY;
+                    image.setPointerCapture(event.pointerId);
+                });
+
+                image.addEventListener('pointermove', (event) => {
+                    if (!isDragging) return;
+                    const dx = event.clientX - startX;
+                    const dy = event.clientY - startY;
+                    translateX = lastX + dx;
+                    translateY = lastY + dy;
+                    applyTransform();
+                });
+
+                const stopDragging = (event) => {
+                    if (!isDragging) return;
+                    isDragging = false;
+                    lastX = translateX;
+                    lastY = translateY;
+                    image.classList.remove('is-dragging');
+                    if (event && event.pointerId) {
+                        image.releasePointerCapture(event.pointerId);
+                    }
+                };
+
+                image.addEventListener('pointerup', stopDragging);
+                image.addEventListener('pointercancel', stopDragging);
+                image.addEventListener('pointerleave', stopDragging);
+
+                image.addEventListener('dblclick', (event) => {
+                    event.preventDefault();
+                    if (scale >= 1.8) {
+                        scale = 1;
+                        translateX = 0;
+                        translateY = 0;
+                        lastX = 0;
+                        lastY = 0;
+                    } else {
+                        scale = 2.0;
+                    }
+                    applyTransform();
+                });
+
+                image.addEventListener('dragstart', (event) => {
+                    event.preventDefault();
+                });
+            }
+
+            if (zoomInBtn) {
+                zoomInBtn.addEventListener('click', () => {
+                    scale = Math.min(scale + 0.2, 3);
+                    applyTransform();
+                });
+            }
+
+            if (zoomOutBtn) {
+                zoomOutBtn.addEventListener('click', () => {
+                    scale = Math.max(scale - 0.2, 0.6);
+                    if (scale <= 1) {
+                        translateX = 0;
+                        translateY = 0;
+                        lastX = 0;
+                        lastY = 0;
+                    }
+                    applyTransform();
+                });
+            }
+
+            if (zoomResetBtn) {
+                zoomResetBtn.addEventListener('click', () => {
+                    scale = 1;
+                    translateX = 0;
+                    translateY = 0;
+                    lastX = 0;
+                    lastY = 0;
+                    applyTransform();
+                });
+            }
+
+            if (panel && image) {
+                panel.addEventListener('wheel', (event) => {
+                    event.preventDefault();
+                    const delta = event.deltaY > 0 ? -0.1 : 0.1;
+                    scale = Math.min(Math.max(scale + delta, 0.6), 3);
+                    if (scale <= 1) {
+                        translateX = 0;
+                        translateY = 0;
+                        lastX = 0;
+                        lastY = 0;
+                    }
+                    applyTransform();
+                });
+            }
+        })();
     </script>
     <script>
         // Network status toasts (SweetAlert2)

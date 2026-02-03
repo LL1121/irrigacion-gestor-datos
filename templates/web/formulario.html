@@ -44,9 +44,19 @@
                                 <label class="form-label">
                                     <i class="bi bi-camera-fill me-2"></i>Fotografía de Caudalímetro
                                 </label>
-                                <input type="file" id="foto_evidencia" name="foto_evidencia" accept="image/*" capture="environment" class="form-control">
+                                <div id="uploadContainer">
+                                    <label for="foto_evidencia" id="uploadButton" class="custom-file-upload">
+                                        <i class="bi bi-upload me-2"></i>Subir Foto
+                                    </label>
+                                    <button type="button" id="removeButton" class="custom-file-upload" style="display: none; background-color: #dc3545; border-color: #dc3545;">
+                                        <i class="bi bi-trash me-2"></i>Eliminar Foto
+                                    </button>
+                                    <input type="file" id="foto_evidencia" name="foto_evidencia" accept="image/*" capture="environment">
+                                </div>
+                                <div id="imagePreview" style="display: none; margin-top: 1rem;">
+                                    <img id="previewImage" src="" alt="Vista previa" style="max-width: 100%; max-height: 300px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                </div>
                                 <small class="text-muted d-block mt-2">Suba una foto de la lectura del caudalímetro (Máx: 10MB)</small>
-                                <small class="text-danger d-block mt-1" id="fileSizeWarning" style="display:none;">⚠️ Archivo demasiado grande. Máximo 10MB.</small>
                             </div>
 
                             <div class="mb-4">
@@ -58,12 +68,12 @@
                             </div>
 
                             <div class="row g-3">
-                                <div class="col-md-6">
+                                <div class="col-md-6 order-2 order-md-1">
                                     <a class="btn btn-outline-secondary w-100" href="{% url 'dashboard' %}">
                                         <i class="bi bi-x-circle me-2"></i>Cancelar
                                     </a>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-6 order-1 order-md-2">
                                     <button type="submit" class="btn btn-success w-100">
                                         <i class="bi bi-check-circle me-2"></i>Guardar Medición
                                     </button>
@@ -77,38 +87,72 @@
     </div>
 </div>
 
-<script src="{% static 'offline-upload.js' %}"></script>
+<script src="{% static 'offline-upload.js' %}?v=7"></script>
 <script>
-    // Validar tamaño de archivo en tiempo real
-    const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB en bytes
-    const fileInput = document.getElementById('foto_evidencia');
-    const fileSizeWarning = document.getElementById('fileSizeWarning');
-    const submitButton = document.querySelector('button[type="submit"]');
-
-    if (fileInput) {
-        fileInput.addEventListener('change', function() {
-            const file = this.files[0];
-            if (file) {
-                if (file.size > MAX_FILE_SIZE) {
-                    fileSizeWarning.style.display = 'block';
-                    submitButton.disabled = true;
-                    submitButton.style.opacity = '0.5';
-                    submitButton.style.cursor = 'not-allowed';
-                } else {
-                    fileSizeWarning.style.display = 'none';
-                    submitButton.disabled = false;
-                    submitButton.style.opacity = '1';
-                    submitButton.style.cursor = 'pointer';
-                }
-            }
-        });
-    }
-
-    // Initialize offline upload system
     document.addEventListener('DOMContentLoaded', async function() {
+        // Initialize offline upload system
         await initOfflineUpload();
         
-        // Override form submission with offline support
+        // Get DOM elements
+        const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB en bytes
+        const fileInput = document.getElementById('foto_evidencia');
+        const uploadButton = document.getElementById('uploadButton');
+        const removeButton = document.getElementById('removeButton');
+        const imagePreview = document.getElementById('imagePreview');
+        const previewImage = document.getElementById('previewImage');
+        const submitButton = document.querySelector('button[type="submit"]');
+        
+        // File input change listener
+        if (fileInput) {
+            fileInput.addEventListener('change', function() {
+                const file = this.files[0];
+                if (file) {
+                    if (file.size > MAX_FILE_SIZE) {
+                        submitButton.disabled = true;
+                        submitButton.style.opacity = '0.5';
+                        submitButton.style.cursor = 'not-allowed';
+                        fileInput.value = '';
+                        imagePreview.style.display = 'none';
+                        uploadButton.style.display = 'inline-block';
+                        removeButton.style.display = 'none';
+                        alert('El archivo es demasiado grande. Máximo 10MB.');
+                    } else {
+                        submitButton.disabled = false;
+                        submitButton.style.opacity = '1';
+                        submitButton.style.cursor = 'pointer';
+                        
+                        // Mostrar vista previa
+                        const reader = new FileReader();
+                        reader.onload = function(e) {
+                            previewImage.src = e.target.result;
+                            imagePreview.style.display = 'block';
+                            uploadButton.style.display = 'none';
+                            removeButton.style.display = 'inline-block';
+                        };
+                        reader.readAsDataURL(file);
+                    }
+                } else {
+                    imagePreview.style.display = 'none';
+                    uploadButton.style.display = 'inline-block';
+                    removeButton.style.display = 'none';
+                }
+            });
+        }
+        
+        // Remove button listener
+        if (removeButton) {
+            removeButton.addEventListener('click', function() {
+                fileInput.value = '';
+                imagePreview.style.display = 'none';
+                uploadButton.style.display = 'inline-block';
+                removeButton.style.display = 'none';
+                submitButton.disabled = false;
+                submitButton.style.opacity = '1';
+                submitButton.style.cursor = 'pointer';
+            });
+        }
+
+        // Form submission listener
         const form = document.getElementById('measurementForm');
         if (form) {
             form.addEventListener('submit', async function(e) {
@@ -127,7 +171,7 @@
                     showNotification('Error', 'El archivo es demasiado grande. Máximo 10MB.', 'error');
                     return false;
                 }
-                
+
                 // Handle with offline support
                 await handleFormSubmit(e, form);
             });

@@ -129,8 +129,8 @@ def cargar_medicion(request):
 			if last_medicion:
 				time_since_last = timezone.now() - last_medicion.timestamp
 				if time_since_last < timedelta(seconds=30):
-					messages.warning(request, 'Espere unos segundos antes de enviar otra medición')
-					return redirect('dashboard')
+					messages.warning(request, f'Espere {30 - int(time_since_last.total_seconds())} segundos antes de enviar otra medición')
+					return redirect('cargar')
 
 			# Obtener datos del formulario
 			valor_caudalimetro = request.POST.get('valor_caudalimetro')
@@ -142,14 +142,26 @@ def cargar_medicion(request):
 				messages.error(request, 'El valor del caudalímetro es obligatorio')
 				return redirect('cargar')
 			
+			# Convertir valor a Decimal
+			try:
+				from decimal import Decimal
+				valor_caudalimetro = Decimal(str(valor_caudalimetro))
+			except Exception as e:
+				messages.error(request, f'El valor debe ser un número válido: {str(e)}')
+				return redirect('cargar')
+			
 			# Obtener ubicación de la empresa del usuario
 			try:
 				from .models import EmpresaPerfil
 				empresa_perfil = EmpresaPerfil.objects.get(usuario=request.user)
 				ubicacion_manual = empresa_perfil.ubicacion or f"Ubicación de {request.user.username}"
+				empresa_lat = empresa_perfil.latitude
+				empresa_lon = empresa_perfil.longitude
 			except EmpresaPerfil.DoesNotExist:
 				# Si no tiene empresa perfil, usar el nombre de usuario
 				ubicacion_manual = f"Ubicación de {request.user.username}"
+				empresa_lat = None
+				empresa_lon = None
 			
 			# Flujo robusto: guardar archivo temporal y confirmar tras commit
 			temp_storage = FileSystemStorage(location=str(Path(settings.MEDIA_ROOT) / "tmp_uploads"))
@@ -169,6 +181,10 @@ def cargar_medicion(request):
 					ubicacion_manual=ubicacion_manual,
 					photo=None,
 					observation=observaciones,
+					captured_latitude=empresa_lat,
+					captured_longitude=empresa_lon,
+					target_latitude=empresa_lat,
+					target_longitude=empresa_lon,
 				)
 				medicion.save()
 
@@ -202,18 +218,12 @@ def cargar_medicion(request):
 								save=False
 							)
 
-							# Guardar coordenadas y timestamp EXIF si existen
-							if metadata.get('latitude') is not None:
-								medicion.captured_latitude = metadata['latitude']
-							if metadata.get('longitude') is not None:
-								medicion.captured_longitude = metadata['longitude']
+							# Guardar timestamp EXIF si existe (coordenadas fijas por empresa)
 							if metadata.get('timestamp') is not None:
 								medicion.captured_at = metadata['timestamp']
 
 							medicion.save(update_fields=[
 								"photo",
-								"captured_latitude",
-								"captured_longitude",
 								"captured_at"
 							])
 						except Exception:
@@ -230,15 +240,40 @@ def cargar_medicion(request):
 
 					transaction.on_commit(finalize_photo_upload)
 			
+			# Para solicitudes AJAX/fetch, devolver JSON en lugar de redirigir
+			if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 'application/json' in request.headers.get('Accept', ''):
+				return JsonResponse({
+					'success': True,
+					'message': 'Medición guardada exitosamente',
+					'id': medicion.id
+				})
+			
 			messages.success(request, 'Medición guardada exitosamente')
 			return redirect('dashboard')
 		
 		except ValueError as e:
 			logger.warning("Error de validación en cargar_medicion", extra={"error": str(e), "user_id": request.user.id})
+			print(f"[DEBUG] ValueError: {str(e)}")
+			
+			# Para solicitudes AJAX/fetch, devolver JSON en lugar de redirigir
+			if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 'application/json' in request.headers.get('Accept', ''):
+				return JsonResponse({
+					'success': False,
+					'message': f'Error en los datos: {str(e)}'
+				}, status=400)
+			
 			messages.error(request, f'Error en los datos: {str(e)}')
 			return redirect('cargar')
 		except Exception as e:
+			print(f"[DEBUG] Exception: {type(e).__name__}: {str(e)}")
 			logger.exception("Error al guardar medición", extra={"user_id": request.user.id})
+			
+			# Para solicitudes AJAX/fetch, devolver JSON en lugar de redirigir
+			if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or 'application/json' in request.headers.get('Accept', ''):
+				return JsonResponse({
+					'success': False,
+					'message': 'Error al guardar la medición'
+				}, status=400)
 			# Limpiar archivo temporal si algo falla antes del commit
 			try:
 				if temp_storage and temp_name and temp_storage.exists(temp_name):
@@ -295,18 +330,17 @@ def get_weekly_route_data(request):
 			pass
 	
 	# Determinar si el usuario actual es staff o regular
+	from django.db.models import Q
+	coords_filter = Q(captured_latitude__isnull=False, captured_longitude__isnull=False) | Q(target_latitude__isnull=False, target_longitude__isnull=False)
+	
 	if request.user.is_staff:
 		# Staff ve todas las mediciones de la semana
 		mediciones = Medicion.objects.filter(
 			timestamp__date__gte=week_start,
 			timestamp__date__lte=week_end,
-			captured_latitude__isnull=False,
-			captured_longitude__isnull=False
-		).exclude(
-			captured_latitude=0,
-			captured_longitude=0
-		).select_related('user').only(
+		).filter(coords_filter).select_related('user').only(
 			'id', 'captured_latitude', 'captured_longitude',
+			'target_latitude', 'target_longitude',
 			'ubicacion_manual', 'value', 'timestamp', 'user__username'
 		).order_by('-timestamp')
 	else:
@@ -315,24 +349,28 @@ def get_weekly_route_data(request):
 			user=request.user,
 			timestamp__date__gte=week_start,
 			timestamp__date__lte=week_end,
-			captured_latitude__isnull=False,
-			captured_longitude__isnull=False
-		).exclude(
-			captured_latitude=0,
-			captured_longitude=0
-		).only(
+		).filter(coords_filter).only(
 			'id', 'captured_latitude', 'captured_longitude',
+			'target_latitude', 'target_longitude',
 			'ubicacion_manual', 'value', 'timestamp'
 		).order_by('-timestamp')
 	
 	# Construir GeoJSON FeatureCollection
 	features = []
 	for medicion in mediciones:
+		lat = medicion.captured_latitude
+		lon = medicion.captured_longitude
+		if lat is None or lon is None or lat == 0 or lon == 0:
+			lat = medicion.target_latitude
+			lon = medicion.target_longitude
+		if lat is None or lon is None or lat == 0 or lon == 0:
+			continue
+		
 		feature = {
 			"type": "Feature",
 			"geometry": {
 				"type": "Point",
-				"coordinates": [medicion.captured_longitude, medicion.captured_latitude]
+				"coordinates": [lon, lat]
 			},
 			"properties": {
 				"id": medicion.id,
@@ -482,7 +520,7 @@ def admin_empresas_view(request):
 	empresas = User.objects.filter(
 		is_staff=False, 
 		is_superuser=False
-	).select_related('empresa_perfil').prefetch_related('mediciones').annotate(
+	).select_related('empresa_perfil').annotate(
 		total_mediciones=Count('mediciones'),
 		latest_measurement=Max('mediciones__timestamp')
 	).order_by('-latest_measurement')
@@ -524,8 +562,8 @@ def admin_empresa_legajo_view(request, user_id):
 		stats['porcentaje_validadas'] = 0
 		stats['umbral_pendientes'] = 0
 	
-	# Preparar datos para Chart.js - Últimas 20 mediciones (solo campos necesarios)
-	chart_mediciones = mediciones_qs.only('timestamp', 'value').order_by('timestamp')[:20]
+	# Preparar datos para Chart.js - Últimas 20 mediciones (queryset optimizado sin relaciones)
+	chart_mediciones = Medicion.objects.filter(user=empresa).only('timestamp', 'value').order_by('timestamp')[:20]
 	chart_labels = [med.timestamp.strftime('%d/%m %H:%M') for med in chart_mediciones]
 	chart_data = [float(med.value) for med in chart_mediciones]
 	
@@ -552,8 +590,14 @@ def admin_mediciones_empresa_view(request, user_id):
 	if not request.user.is_staff:
 		return redirect('dashboard')
 	
+	from django.core.paginator import Paginator
+	
 	empresa = get_object_or_404(User.objects.select_related('empresa_perfil'), id=user_id, is_staff=False)
-	mediciones = Medicion.objects.filter(user=empresa).select_related('user').order_by('-timestamp')
+	mediciones_qs = Medicion.objects.filter(user=empresa).select_related('user').order_by('-timestamp')
+	
+	paginator = Paginator(mediciones_qs, 20)
+	page_number = request.GET.get('page', 1)
+	mediciones = paginator.get_page(page_number)
 	
 	return render(request, 'web/admin_mediciones_empresa.html', {
 		'mediciones': mediciones,
@@ -572,6 +616,11 @@ def admin_validar_medicion_view(request, medicion_id):
 		medicion.is_valid = True
 		medicion.save()
 		messages.success(request, 'Medición validada correctamente')
+		
+		# Redirigir a la URL especificada en 'next' o por defecto a mediciones de la empresa
+		next_url = request.POST.get('next', '')
+		if next_url:
+			return redirect(next_url)
 		return redirect('admin_mediciones_empresa', user_id=medicion.user.id)
 	
 	return redirect('admin_empresas')

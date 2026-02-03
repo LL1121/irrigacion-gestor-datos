@@ -185,9 +185,9 @@
                                         </td>
                                         <td onclick="event.stopPropagation()">
                                             {% if medicion.photo %}
-                                                <a href="{{ medicion.photo.url }}" target="_blank" class="btn btn-sm btn-outline-primary">
+                                                <button type="button" class="btn btn-sm btn-outline-primary photo-viewer-trigger" data-photo-viewer="{{ medicion.photo.url }}">
                                                     <i class="bi bi-image"></i> Ver
-                                                </a>
+                                                </button>
                                             {% else %}
                                                 <span class="text-muted">Sin foto</span>
                                             {% endif %}
@@ -219,7 +219,7 @@
                 <h5 class="modal-title"><i class="bi bi-info-circle me-2"></i>Detalles de Medición</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" id="detalleModalBody">
                 <div class="row g-3">
                     <!-- Información General -->
                     <div class="col-md-6">
@@ -244,15 +244,10 @@
                                 <i class="bi bi-geo-alt me-2"></i>Coordenadas GPS
                             </div>
                             <div class="card-body">
-                                <p><strong>Capturadas:</strong></p>
-                                <p class="mb-2">
+                                <p><strong>Coordenadas:</strong></p>
+                                <p class="mb-0">
                                     <i class="bi bi-pin-map"></i> Lat: <span id="detalle-lat-capturada"></span><br>
                                     <i class="bi bi-pin-map"></i> Lon: <span id="detalle-lon-capturada"></span>
-                                </p>
-                                <p><strong>Objetivo (Esperadas):</strong></p>
-                                <p class="mb-0">
-                                    <i class="bi bi-crosshair"></i> Lat: <span id="detalle-lat-objetivo"></span><br>
-                                    <i class="bi bi-crosshair"></i> Lon: <span id="detalle-lon-objetivo"></span>
                                 </p>
                             </div>
                         </div>
@@ -270,11 +265,27 @@
                     </div>
                 </div>
             </div>
+            <div class="modal-footer">
+                <button type="button" id="btnVerificar" class="btn btn-success" onclick="verificarMedicion()" style="display: none; padding: 0.25rem 0.5rem; font-size: 0.875rem;">
+                    <i class="bi bi-check-circle me-1"></i>Verificar
+                </button>
+                <button type="button" class="btn btn-secondary btn-sm ms-auto" data-bs-dismiss="modal">Cerrar</button>
+            </div>
         </div>
     </div>
 </div>
 
 <script>
+function formatCoordinate(value) {
+    if (value === null || value === undefined || value === 'N/A' || value === '') {
+        return 'N/A';
+    }
+    const num = parseFloat(value);
+    return isNaN(num) ? 'N/A' : num.toFixed(6);
+}
+
+let currentMedicionId = null;
+
 const medicionesData = {
     {% for medicion in mediciones %}
     {{ medicion.id }}: {
@@ -284,10 +295,10 @@ const medicionesData = {
         estado: {% if medicion.is_valid %}"Verificado"{% else %}"Pendiente"{% endif %},
         estadoBadge: {% if medicion.is_valid %}"bg-success"{% else %}"bg-warning text-dark"{% endif %},
         ubicacion: "{{ medicion.ubicacion_manual|default:'Sin especificar' }}",
-        latCapturada: "{{ medicion.captured_latitude|default:'N/A' }}",
-        lonCapturada: "{{ medicion.captured_longitude|default:'N/A' }}",
-        latObjetivo: "{{ medicion.target_latitude|default:'N/A' }}",
-        lonObjetivo: "{{ medicion.target_longitude|default:'N/A' }}",
+        latCapturada: {{ medicion.captured_latitude|default:"null" }},
+        lonCapturada: {{ medicion.captured_longitude|default:"null" }},
+        latObjetivo: {{ medicion.target_latitude|default:"null" }},
+        lonObjetivo: {{ medicion.target_longitude|default:"null" }},
         foto: {% if medicion.photo %}"{{ medicion.photo.url }}"{% else %}null{% endif %}
     },
     {% endfor %}
@@ -297,24 +308,58 @@ function verDetallesMedicion(medicionId) {
     const medicion = medicionesData[medicionId];
     if (!medicion) return;
     
+    currentMedicionId = medicionId;
+    
     document.getElementById('detalle-fecha').textContent = medicion.fecha;
     document.getElementById('detalle-empresa').textContent = medicion.empresa;
     document.getElementById('detalle-valor').textContent = medicion.valor;
     document.getElementById('detalle-estado').innerHTML = `<span class="badge ${medicion.estadoBadge}">${medicion.estado}</span>`;
     document.getElementById('detalle-ubicacion').textContent = medicion.ubicacion;
-    document.getElementById('detalle-lat-capturada').textContent = medicion.latCapturada;
-    document.getElementById('detalle-lon-capturada').textContent = medicion.lonCapturada;
-    document.getElementById('detalle-lat-objetivo').textContent = medicion.latObjetivo;
-    document.getElementById('detalle-lon-objetivo').textContent = medicion.lonObjetivo;
+    document.getElementById('detalle-lat-capturada').textContent = formatCoordinate(medicion.latCapturada);
+    document.getElementById('detalle-lon-capturada').textContent = formatCoordinate(medicion.lonCapturada);
+    
+    // Mostrar/ocultar botón de verificar según el estado
+    const btnVerificar = document.getElementById('btnVerificar');
+    btnVerificar.style.display = medicion.estado === 'Pendiente' ? 'block' : 'none';
     
     const fotoContainer = document.getElementById('detalle-foto-container');
     if (medicion.foto) {
-        fotoContainer.innerHTML = `<img src="${medicion.foto}" class="img-fluid rounded" style="max-height: 400px;" alt="Evidencia">`;
+        fotoContainer.innerHTML = `<img src="${medicion.foto}" class="img-fluid rounded photo-viewer-trigger" data-photo-viewer="${medicion.foto}" style="max-height: 400px;" alt="Evidencia">`;
     } else {
         fotoContainer.innerHTML = '<p class="text-muted mb-0"><i class="bi bi-image-slash fs-1 d-block mb-2"></i>No hay foto disponible</p>';
     }
     
     new bootstrap.Modal(document.getElementById('modalDetallesMedicion')).show();
+}
+
+function verificarMedicion() {
+    if (!currentMedicionId) return;
+    
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = `/gestion/mediciones/${currentMedicionId}/validar/`;
+    
+    const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]')?.value || 
+                      document.querySelector('input[name=csrfmiddlewaretoken]')?.value;
+    
+    if (csrfToken) {
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'csrfmiddlewaretoken';
+        input.value = csrfToken;
+        form.appendChild(input);
+    }
+    
+    // Agregar campo 'next' para redirigir al dashboard
+    const nextInput = document.createElement('input');
+    nextInput.type = 'hidden';
+    nextInput.name = 'next';
+    nextInput.value = '/';
+    form.appendChild(nextInput);
+    
+    form.style.display = 'none';
+    document.body.appendChild(form);
+    form.submit();
 }
 </script>
 
