@@ -101,9 +101,54 @@
                             </div>
                             
                             <div class="mb-4">
-                                <label for="ubicacion" class="form-label">
+                                <label class="form-label">
                                     <i class="bi bi-geo-alt-fill me-2" style="color: var(--primary-blue);"></i>
-                                    <strong>Ubicación Geográfica</strong>
+                                    <strong>Coordenadas GPS Exactas</strong>
+                                </label>
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <label for="latitude" class="form-label"><small>Latitud</small></label>
+                                        <input 
+                                            type="text" 
+                                            class="form-control" 
+                                            id="latitude" 
+                                            name="latitude" 
+                                            value="{{ perfil.latitude|default:'' }}"
+                                            placeholder="-35.4695"
+                                            pattern="^-?([0-9]{1,2}|1[0-7][0-9]|180)(\.[0-9]{1,6})?$">
+                                        <small class="text-muted">Ej: -35.4695</small>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label for="longitude" class="form-label"><small>Longitud</small></label>
+                                        <input 
+                                            type="text" 
+                                            class="form-control" 
+                                            id="longitude" 
+                                            name="longitude" 
+                                            value="{{ perfil.longitude|default:'' }}"
+                                            placeholder="-69.5797"
+                                            pattern="^-?([0-9]{1,2}|1[0-7][0-9]|180)(\.[0-9]{1,6})?$">
+                                        <small class="text-muted">Ej: -69.5797</small>
+                                    </div>
+                                </div>
+                                <small class="text-muted d-block mt-2">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    Ingresá las coordenadas GPS exactas. El nombre de ubicación se generará automáticamente.
+                                </small>
+                                {% if perfil.latitude and perfil.longitude %}
+                                <div class="alert alert-success mt-2 p-2">
+                                    <small>
+                                        <i class="bi bi-check-circle me-1"></i>
+                                        <strong>Ubicación actual:</strong> {{ perfil.ubicacion|default:"Calculando..." }}
+                                    </small>
+                                </div>
+                                {% endif %}
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="ubicacion" class="form-label">
+                                    <i class="bi bi-pin-map-fill me-2" style="color: var(--primary-blue);"></i>
+                                    <strong>Ubicación (Solo si no tenés coordenadas GPS)</strong>
                                 </label>
                                 <input 
                                     type="text" 
@@ -111,9 +156,8 @@
                                     id="ubicacion" 
                                     name="ubicacion" 
                                     value="{{ perfil.ubicacion|default:'' }}"
-                                    placeholder="Ej: Pozo A-23, Salta, Argentina"
-                                    required>
-                                <small class="text-muted d-block mt-2">Especifica dónde está ubicada la empresa / pozo de extracción.</small>
+                                    placeholder="Ej: Pozo A-23, Malargüe, Mendoza">
+                                <small class="text-muted d-block mt-2">Este campo se completa automáticamente si ingresás coordenadas GPS. Solo editalo manualmente si no tenés las coordenadas.</small>
                             </div>
 
                             <div class="mb-4">

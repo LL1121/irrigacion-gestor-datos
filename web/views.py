@@ -621,11 +621,35 @@ def admin_editar_perfil_empresa_view(request, user_id):
 		empresa.save()
 		
 		# Actualizar perfil
-		perfil.ubicacion = request.POST.get('ubicacion', '')
 		perfil.descripcion = request.POST.get('descripcion', '')
+		
+		# Procesar coordenadas GPS
+		latitude_str = request.POST.get('latitude', '').strip()
+		longitude_str = request.POST.get('longitude', '').strip()
+		
+		if latitude_str and longitude_str:
+			try:
+				perfil.latitude = float(latitude_str)
+				perfil.longitude = float(longitude_str)
+				perfil.save()
+				
+				# Geocodificación inversa automática
+				location_name = perfil.update_location_from_coordinates()
+				if location_name:
+					messages.success(request, f'Coordenadas actualizadas. Ubicación: {location_name}')
+				else:
+					messages.warning(request, 'Coordenadas guardadas pero no se pudo obtener el nombre de ubicación')
+			except ValueError:
+				messages.error(request, 'Coordenadas inválidas. Usa formato decimal (ej: -35.4695, -69.5797)')
+		else:
+			# Si no hay coordenadas, permitir ubicación manual
+			perfil.ubicacion = request.POST.get('ubicacion', '')
+		
+		# Actualizar ícono
 		icono_file = request.FILES.get('icono')
 		if icono_file:
 			perfil.icono = icono_file
+		
 		perfil.save()
 		
 		messages.success(request, f'Información de {empresa.username} actualizada correctamente')

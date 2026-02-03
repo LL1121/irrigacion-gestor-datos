@@ -29,6 +29,12 @@ class EmpresaPerfil(models.Model):
 	"""Perfil adicional de la empresa con información operativa"""
 	usuario = models.OneToOneField(User, on_delete=models.CASCADE, related_name="empresa_perfil", help_text="Usuario que representa a la empresa")
 	icono = models.ImageField(upload_to="empresa_iconos/", null=True, blank=True, help_text="Ícono / logo de la empresa")
+	
+	# Coordenadas GPS exactas
+	latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, help_text="Latitud GPS de la ubicación de la empresa")
+	longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True, help_text="Longitud GPS de la ubicación de la empresa")
+	
+	# Ubicación en texto (auto-generada desde coordenadas o manual)
 	ubicacion = models.CharField(max_length=300, null=True, blank=True, help_text="Ubicación geográfica de la empresa / pozo")
 	descripcion = models.TextField(null=True, blank=True, help_text="Descripción general de la empresa")
 	created_at = models.DateTimeField(auto_now_add=True)
@@ -40,6 +46,64 @@ class EmpresaPerfil(models.Model):
 
 	def __str__(self):
 		return f"Perfil - {self.usuario.username}"
+	
+	def update_location_from_coordinates(self):
+		"""Actualizar ubicación en texto desde coordenadas GPS usando geocodificación inversa"""
+		if not self.latitude or not self.longitude:
+			return None
+		
+		try:
+			import requests
+			from time import sleep
+			
+			# Usar Nominatim de OpenStreetMap (gratuito, sin API key)
+			url = f"https://nominatim.openstreetmap.org/reverse"
+			params = {
+				'lat': float(self.latitude),
+				'lon': float(self.longitude),
+				'format': 'json',
+				'addressdetails': 1,
+				'accept-language': 'es'
+			}
+			headers = {
+				'User-Agent': 'IrrigacionApp/1.0'
+			}
+			
+			response = requests.get(url, params=params, headers=headers, timeout=5)
+			
+			if response.status_code == 200:
+				data = response.json()
+				address = data.get('address', {})
+				
+				# Construir ubicación legible
+				parts = []
+				if address.get('road'):
+					parts.append(address['road'])
+				if address.get('city'):
+					parts.append(address['city'])
+				elif address.get('town'):
+					parts.append(address['town'])
+				elif address.get('village'):
+					parts.append(address['village'])
+				if address.get('state'):
+					parts.append(address['state'])
+				if address.get('country'):
+					parts.append(address['country'])
+				
+				if parts:
+					self.ubicacion = ', '.join(parts)
+				else:
+					# Fallback: usar display_name
+					self.ubicacion = data.get('display_name', f"{self.latitude}, {self.longitude}")
+				
+				self.save()
+				return self.ubicacion
+			else:
+				return None
+				
+		except Exception as e:
+			print(f"Error en geocodificación inversa: {e}")
+			return None
 
 
 class Medicion(models.Model):
