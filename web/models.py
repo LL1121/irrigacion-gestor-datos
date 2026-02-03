@@ -28,6 +28,7 @@ def medicion_photo_path(instance, filename):
 class EmpresaPerfil(models.Model):
 	"""Perfil adicional de la empresa con información operativa"""
 	usuario = models.OneToOneField(User, on_delete=models.CASCADE, related_name="empresa_perfil", help_text="Usuario que representa a la empresa")
+	icono = models.ImageField(upload_to="empresa_iconos/", null=True, blank=True, help_text="Ícono / logo de la empresa")
 	ubicacion = models.CharField(max_length=300, null=True, blank=True, help_text="Ubicación geográfica de la empresa / pozo")
 	descripcion = models.TextField(null=True, blank=True, help_text="Descripción general de la empresa")
 	created_at = models.DateTimeField(auto_now_add=True)

@@ -47,7 +47,7 @@
                         <h5 class="mb-0"><i class="bi bi-file-text me-2"></i>Información Operativa</h5>
                     </div>
                     <div class="card-body">
-                        <form method="post" class="needs-validation" novalidate>
+                        <form method="post" class="needs-validation" novalidate enctype="multipart/form-data">
                             {% csrf_token %}
                             
                             <div class="mb-4">
@@ -79,6 +79,25 @@
                                     value="{{ empresa.email }}"
                                     placeholder="correo@empresa.com">
                                 <small class="text-muted d-block mt-2">Email de contacto de la empresa.</small>
+                            </div>
+
+                            <div class="mb-4">
+                                <label for="icono" class="form-label">
+                                    <i class="bi bi-image-fill me-2" style="color: var(--primary-blue);"></i>
+                                    <strong>Ícono / Logo de la Empresa</strong>
+                                </label>
+                                <input 
+                                    type="file" 
+                                    class="form-control form-control-lg" 
+                                    id="icono" 
+                                    name="icono" 
+                                    accept="image/*">
+                                <small class="text-muted d-block mt-2">Subí un ícono o logo para mostrar en el listado de empresas.</small>
+                                {% if perfil.icono %}
+                                <div class="mt-2">
+                                    <img src="{{ perfil.icono.url }}" alt="Ícono actual" style="height: 48px; width: 48px; border-radius: 50%; object-fit: cover;">
+                                </div>
+                                {% endif %}
                             </div>
                             
                             <div class="mb-4">

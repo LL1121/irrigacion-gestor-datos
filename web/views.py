@@ -623,6 +623,9 @@ def admin_editar_perfil_empresa_view(request, user_id):
 		# Actualizar perfil
 		perfil.ubicacion = request.POST.get('ubicacion', '')
 		perfil.descripcion = request.POST.get('descripcion', '')
+		icono_file = request.FILES.get('icono')
+		if icono_file:
+			perfil.icono = icono_file
 		perfil.save()
 		
 		messages.success(request, f'Información de {empresa.username} actualizada correctamente')
