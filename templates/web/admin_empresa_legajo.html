@@ -58,7 +58,7 @@ body {
                                 <i class="bi bi-download me-1"></i>Descargar
                             </button>
                             <ul class="dropdown-menu dropdown-menu-end">
-                                <li><h6 class="dropdown-header">Históricos</h6></li>
+                                <li><h6 class="dropdown-header">Descargar Históricos</h6></li>
                                 <li>
                                     <a class="dropdown-item" href="{% url 'exportar_csv' %}?user_id={{ empresa.id }}&tipo=historico">
                                         <i class="bi bi-file-earmark-spreadsheet me-2"></i>CSV - Históricos
@@ -66,19 +66,7 @@ body {
                                 </li>
                                 <li>
                                     <a class="dropdown-item" href="#" onclick="descargarGrafico(event, 'historico')">
-                                        <i class="bi bi-file-earmark-image me-2"></i>PNG - Históricos
-                                    </a>
-                                </li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><h6 class="dropdown-header">Semanal</h6></li>
-                                <li>
-                                    <a class="dropdown-item" href="{% url 'exportar_csv' %}?user_id={{ empresa.id }}&tipo=semanal">
-                                        <i class="bi bi-file-earmark-spreadsheet me-2"></i>CSV - Semanal
-                                    </a>
-                                </li>
-                                <li>
-                                    <a class="dropdown-item" href="#" onclick="descargarGrafico(event, 'semanal')">
-                                        <i class="bi bi-file-earmark-image me-2"></i>PNG - Semanal
+                                        <i class="bi bi-file-earmark-image me-2"></i>PNG - Gráfico
                                     </a>
                                 </li>
                             </ul>
