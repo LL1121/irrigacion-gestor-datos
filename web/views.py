@@ -497,10 +497,12 @@ def admin_empresa_legajo_view(request, user_id):
 		return redirect('dashboard')
 	
 	from django.db.models import Count, Avg, Min, Max
+	from django.core.paginator import Paginator
+	
 	empresa = get_object_or_404(User.objects.select_related('empresa_perfil'), id=user_id, is_staff=False)
 	
 	# Usar queryset base para evitar duplicación
-	mediciones_qs = Medicion.objects.filter(user=empresa)
+	mediciones_qs = Medicion.objects.filter(user=empresa).select_related('user')
 	
 	# Estadísticas avanzadas (una sola query)
 	stats = mediciones_qs.aggregate(
@@ -527,8 +529,11 @@ def admin_empresa_legajo_view(request, user_id):
 	chart_labels = [med.timestamp.strftime('%d/%m %H:%M') for med in chart_mediciones]
 	chart_data = [float(med.value) for med in chart_mediciones]
 	
-	# Mediciones para la tabla (lazy load)
-	mediciones = mediciones_qs.order_by('-timestamp')
+	# Paginación de mediciones (10 por página para mejorar rendimiento)
+	mediciones_list = mediciones_qs.order_by('-timestamp')
+	paginator = Paginator(mediciones_list, 10)
+	page_number = request.GET.get('page', 1)
+	mediciones = paginator.get_page(page_number)
 	
 	context = {
 		'empresa': empresa,

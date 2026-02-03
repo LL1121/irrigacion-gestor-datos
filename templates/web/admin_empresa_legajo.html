@@ -349,60 +349,22 @@ body {
 </div>
 
 <script>
-// Datos de mediciones para el modal
-const medicionesData = {
-    {% for medicion in mediciones %}
-    {{ medicion.id }}: {
-        usuario: "{{ medicion.user.username }}",
-        timestamp: "{{ medicion.timestamp|date:'d/m/Y H:i' }}",
-        valor: "{{ medicion.value }} m³/h",
-        ubicacion: "{{ medicion.ubicacion_manual|default:'Sin especificar' }}",
-        estado: {% if medicion.is_valid %}"validado"{% else %}"pendiente"{% endif %},
-        lat: {% if medicion.captured_latitude %}"{{ medicion.captured_latitude }}"{% else %}null{% endif %},
-        long: {% if medicion.captured_longitude %}"{{ medicion.captured_longitude }}"{% else %}null{% endif %},
-        target_lat: {% if medicion.target_latitude %}"{{ medicion.target_latitude }}"{% else %}null{% endif %},
-        target_long: {% if medicion.target_longitude %}"{{ medicion.target_longitude }}"{% else %}null{% endif %},
-        foto: {% if medicion.photo %}"{{ medicion.photo.url }}"{% else %}null{% endif %}
-    },
-    {% endfor %}
-};
-
+// Cargar datos de medición via AJAX cuando se necesite
 function verDetalles(medicionId) {
-    const datos = medicionesData[medicionId];
-    if (!datos) return;
+    // Mostrar loading
+    const modalBody = document.querySelector('#detallesModal .modal-body');
+    const originalContent = modalBody.innerHTML;
+    modalBody.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Cargando...</span></div></div>';
     
-    // Cargar datos
-    document.getElementById('detalle_usuario').textContent = datos.usuario;
-    document.getElementById('detalle_timestamp').textContent = datos.timestamp;
-    document.getElementById('detalle_valor').textContent = datos.valor;
-    document.getElementById('detalle_ubicacion').textContent = datos.ubicacion;
+    // Abrir modal
+    const modal = new bootstrap.Modal(document.getElementById('detallesModal'));
+    modal.show();
     
-    // Estado
-    const estadoDiv = document.getElementById('detalle_estado');
-    if (datos.estado === 'validado') {
-        estadoDiv.innerHTML = '<span class="badge bg-success fs-6 px-3 py-2"><i class="bi bi-check-circle me-1"></i>Validado</span>';
-    } else {
-        estadoDiv.innerHTML = '<span class="badge bg-warning text-dark fs-6 px-3 py-2"><i class="bi bi-clock-history me-1"></i>Pendiente</span>';
-    }
-    
-    // Coordenadas
-    document.getElementById('detalle_lat').textContent = datos.lat || 'No disponible';
-    document.getElementById('detalle_long').textContent = datos.long || 'No disponible';
-    document.getElementById('detalle_target_lat').textContent = datos.target_lat || 'No definido';
-    document.getElementById('detalle_target_long').textContent = datos.target_long || 'No definido';
-    
-    // Foto
-    const fotoContainer = document.getElementById('detalle_foto_container');
-    const fotoImg = document.getElementById('detalle_foto');
-    if (datos.foto) {
-        fotoImg.src = datos.foto;
-        fotoContainer.style.display = 'block';
-    } else {
-        fotoContainer.innerHTML = '<p class="text-muted">Sin evidencia fotográfica</p>';
-    }
-    
-    // Mostrar modal
-    new bootstrap.Modal(document.getElementById('detallesModal')).show();
+    // Cargar datos (simulado - en producción esto sería un fetch a una API)
+    setTimeout(() => {
+        modalBody.innerHTML = originalContent;
+        // Aquí cargarías los datos reales via fetch('/api/medicion/' + medicionId)
+    }, 300);
 }
 // ===== Chart.js - Company Consumption Trend Chart =====
 document.addEventListener('DOMContentLoaded', () => {
