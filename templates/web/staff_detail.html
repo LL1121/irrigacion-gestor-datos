@@ -10,6 +10,11 @@
                     <div class="greeting-subtitle">
                         <i class="bi bi-envelope me-2"></i>{{ empresa.email|default:"Sin email" }}
                     </div>
+                    {% if empresa.empresa_perfil %}
+                    <div class="greeting-subtitle">
+                        <i class="bi bi-geo-alt-fill me-2"></i>{{ empresa.empresa_perfil.ubicacion|default:"No especificada" }}
+                    </div>
+                    {% endif %}
                 </div>
                 <a class="btn btn-outline-light" href="{% url 'staff_empresas' %}">
                     <i class="bi bi-arrow-left"></i> Volver

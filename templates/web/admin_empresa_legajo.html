@@ -21,6 +21,11 @@ body {
                         <i class="bi bi-building"></i> {{ empresa.username|title }}
                     </div>
                     <div class="greeting-subtitle">Legajo completo de la empresa</div>
+                    {% if empresa.empresa_perfil %}
+                    <div class="greeting-subtitle">
+                        <i class="bi bi-geo-alt-fill me-2"></i>{{ empresa.empresa_perfil.ubicacion|default:"No especificada" }}
+                    </div>
+                    {% endif %}
                 </div>
                 <div style="flex: 0 0 auto;" class="text-center">
                     <a href="{% url 'dashboard' %}" class="d-inline-block" style="text-decoration: none;">
