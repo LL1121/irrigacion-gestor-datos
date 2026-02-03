@@ -73,85 +73,18 @@
         fetch(url)
             .then(response => response.json())
             .then(data => {
-                let features = data.features || [];
+                const features = data.features || [];
                 
-                // ===== TEST DATA (HARDCODEADO) =====
-                const testFeatures = [
-                    {
-                        "type": "Feature",
-                        "geometry": {
-                            "type": "Point",
-                            "coordinates": [-69.5797, -35.4695]
-                        },
-                        "properties": {
-                            "id": 999,
-                            "popup_title": "31/01 09:30hs",
-                            "operator_name": "petroargentina",
-                            "value": "1250.75",
-                            "ubicacion": "Pozo Malargüe-A1",
-                            "detail_url": "#",
-                            "is_valid": true
-                        }
-                    },
-                    {
-                        "type": "Feature",
-                        "geometry": {
-                            "type": "Point",
-                            "coordinates": [-69.5850, -35.4650]
-                        },
-                        "properties": {
-                            "id": 998,
-                            "popup_title": "31/01 11:15hs",
-                            "operator_name": "ypf_norte",
-                            "value": "980.30",
-                            "ubicacion": "Pozo Malargüe-B2",
-                            "detail_url": "#",
-                            "is_valid": false
-                        }
-                    },
-                    {
-                        "type": "Feature",
-                        "geometry": {
-                            "type": "Point",
-                            "coordinates": [-69.5700, -35.4800]
-                        },
-                        "properties": {
-                            "id": 997,
-                            "popup_title": "31/01 14:45hs",
-                            "operator_name": "shell_vaca_muerta",
-                            "value": "1560.20",
-                            "ubicacion": "Pozo Malargüe-C3",
-                            "detail_url": "#",
-                            "is_valid": true
-                        }
-                    },
-                    {
-                        "type": "Feature",
-                        "geometry": {
-                            "type": "Point",
-                            "coordinates": [-69.5900, -35.4600]
-                        },
-                        "properties": {
-                            "id": 996,
-                            "popup_title": "31/01 16:20hs",
-                            "operator_name": "pan_american_energy",
-                            "value": "1120.55",
-                            "ubicacion": "Pozo Malargüe-D4",
-                            "detail_url": "#",
-                            "is_valid": true
-                        }
-                    }
-                ];
-                
-                // Si no hay datos reales, usar test data
+                // Verificar si hay mediciones con GPS
                 if (features.length === 0) {
-                    console.log("No hay datos reales. Usando TEST DATA...");
-                    features = testFeatures;
-                }
-                
-                if (features.length === 0) {
-                    alert('No hay mediciones con GPS para esta semana');
+                    console.log('No hay mediciones con coordenadas GPS para esta semana');
                     document.getElementById('recordCount').textContent = '0';
+                    
+                    // Mostrar mensaje informativo
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = 'alert alert-info m-3';
+                    messageDiv.innerHTML = '<i class="bi bi-info-circle"></i> No hay mediciones con coordenadas GPS para esta semana.';
+                    document.querySelector('.card-body').appendChild(messageDiv);
                     return;
                 }
                 
@@ -218,21 +151,13 @@
                 
                 // Actualizar stats
                 document.getElementById('recordCount').textContent = features.length;
+                
+                // Mostrar período desde los datos del API
                 const props = data.properties || {};
                 if (props.week_start && props.week_end) {
                     const startDate = new Date(props.week_start).toLocaleDateString('es-AR');
                     const endDate = new Date(props.week_end).toLocaleDateString('es-AR');
                     document.getElementById('periodDisplay').textContent = `${startDate} - ${endDate}`;
-                } else {
-                    // Para test data
-                    const today = new Date();
-                    const weekStart = new Date(today);
-                    weekStart.setDate(today.getDate() - today.getDay() + 1);
-                    const weekEnd = new Date(weekStart);
-                    weekEnd.setDate(weekStart.getDate() + 6);
-                    
-                    document.getElementById('periodDisplay').textContent = 
-                        `${weekStart.toLocaleDateString('es-AR')} - ${weekEnd.toLocaleDateString('es-AR')}`;
                 }
             })
             .catch(error => {
