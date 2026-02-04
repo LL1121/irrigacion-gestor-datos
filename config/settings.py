@@ -82,11 +82,26 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 
-DATABASES = {
-    'default': dj_database_url.config(
-        default=config('DATABASE_URL', default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}")
-    )
-}
+# Soporta tanto DATABASE_URL como variables separadas DB_USER/DB_PASSWORD
+_database_url = config('DATABASE_URL', default=None)
+
+if _database_url:
+    # Si DATABASE_URL está definida, úsala directamente
+    DATABASES = {
+        'default': dj_database_url.config(default=_database_url)
+    }
+else:
+    # Si no, construye desde variables separadas
+    _db_user = config('DB_USER', default='postgres')
+    _db_password = config('DB_PASSWORD', default='postgres')
+    _db_name = config('DB_NAME', default='malargue_db')
+    _db_host = config('DB_HOST', default='localhost')
+    _db_port = config('DB_PORT', default='5432')
+    
+    _database_url = f"postgresql://{_db_user}:{_db_password}@{_db_host}:{_db_port}/{_db_name}"
+    DATABASES = {
+        'default': dj_database_url.config(default=_database_url)
+    }
 
 
 # Password validation
@@ -144,16 +159,20 @@ LOGIN_REDIRECT_URL = '/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # Security settings
-SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=not DEBUG, cast=bool)
+# SSL is handled by Cloudflare, so we receive HTTP traffic
+SECURE_SSL_REDIRECT = config('SECURE_SSL_REDIRECT', default=False, cast=bool)
 SESSION_COOKIE_SECURE = config('SESSION_COOKIE_SECURE', default=not DEBUG, cast=bool)
 CSRF_COOKIE_SECURE = config('CSRF_COOKIE_SECURE', default=not DEBUG, cast=bool)
 SECURE_HSTS_SECONDS = config('SECURE_HSTS_SECONDS', default=(31536000 if not DEBUG else 0), cast=int)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = config('SECURE_HSTS_INCLUDE_SUBDOMAINS', default=not DEBUG, cast=bool)
 SECURE_HSTS_PRELOAD = config('SECURE_HSTS_PRELOAD', default=not DEBUG, cast=bool)
+
+# Since we're behind Cloudflare Tunnel, trust X-Forwarded-Proto header
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
+# CSRF protection for Cloudflare Tunnel setup
 CSRF_TRUSTED_ORIGINS = [
-    origin for origin in config('CSRF_TRUSTED_ORIGINS', default='', cast=Csv()) if origin
+    origin for origin in config('CSRF_TRUSTED_ORIGINS', default='https://irrigacionmalargue.net', cast=Csv()) if origin
 ]
 
 # Cache (Redis)

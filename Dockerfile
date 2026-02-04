@@ -1,7 +1,7 @@
 # ==============================================================================
 # Stage 1: Builder
 # ==============================================================================
-FROM python:3.11-slim as builder
+FROM python:3.10-slim as builder
 
 WORKDIR /app
 
@@ -13,8 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements
-COPY requirements/base.txt requirements/base.txt
-COPY requirements/prod.txt requirements/prod.txt
+COPY requirements.txt requirements.txt
 
 # Create virtual environment in builder
 RUN python -m venv /opt/venv
@@ -22,12 +21,12 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Install Python dependencies
 RUN pip install --upgrade pip setuptools wheel && \
-    pip install -r requirements/prod.txt
+    pip install -r requirements.txt
 
 # ==============================================================================
 # Stage 2: Runtime
 # ==============================================================================
-FROM python:3.11-slim
+FROM python:3.10-slim
 
 WORKDIR /app
 
@@ -47,10 +46,7 @@ ENV PATH="/opt/venv/bin:$PATH" \
 
 # Create non-root user for security
 RUN useradd -m -u 1000 malargue && \
-    mkdir -p /app /var/log/malargue && \
-    chown -R malargue:malargue /app /var/log/malargue
-
-# Copy application code
+    mkdir -p /app/logs /app/media /app/staticfiles /var/log/malargue && \
 COPY --chown=malargue:malargue . .
 
 # Switch to non-root user
