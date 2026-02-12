@@ -150,6 +150,7 @@ WHITENOISE_MANIFEST_STRICT = False  # No fallar si un archivo no existe en manif
 # Media files (User uploads)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
+SERVE_MEDIA = config('SERVE_MEDIA', default=DEBUG, cast=bool)
 
 # Login redirect
 LOGIN_URL = '/login/'
